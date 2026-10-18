@@ -49,7 +49,9 @@ String libelleStatut(String statut) {
 /// État d'un projet : vert si un agent travaille, orange si un agent attend, gris sinon.
 String statutProjet(ProjetPerso p) {
   final statuts = p.sessions.map(statutDe).toSet();
-  if (statuts.contains('ACTIVE') || statuts.contains('STARTING')) return 'ACTIVE';
+  if (statuts.contains('ACTIVE') || statuts.contains('STARTING')) {
+    return 'ACTIVE';
+  }
   if (statuts.contains('AWAITING_INPUT')) return 'AWAITING_INPUT';
   if (statuts.contains('FAILED')) return 'FAILED';
   return 'COMPLETED';
@@ -81,7 +83,12 @@ class Pastille extends StatelessWidget {
         color: c,
         shape: BoxShape.circle,
         boxShadow: vivant
-            ? [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 6, spreadRadius: 1)]
+            ? [
+                BoxShadow(
+                    color: c.withValues(alpha: 0.5),
+                    blurRadius: 6,
+                    spreadRadius: 1)
+              ]
             : null,
       ),
     );

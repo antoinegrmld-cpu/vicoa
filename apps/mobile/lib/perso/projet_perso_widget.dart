@@ -2,12 +2,12 @@
 
 import 'package:flutter/material.dart';
 
-import '/flutter_flow/flutter_flow_theme.dart';
 import 'canevas_n8n.dart';
 import 'detail_agent_sheet.dart';
-import 'perso_commun.dart';
+import 'perso_commun.dart' show libelleStatut;
 import 'perso_hub.dart';
 import 'perso_store.dart';
+import 'perso_theme.dart';
 
 class ProjetPersoWidget extends StatefulWidget {
   const ProjetPersoWidget({super.key, required this.cle});
@@ -60,100 +60,124 @@ class _ProjetPersoWidgetState extends State<ProjetPersoWidget> {
     setState(() {});
   }
 
-  Map<String, dynamic> _session(String id) =>
-      store.sessions.firstWhere((s) => s['id'].toString() == id, orElse: () => {'id': id});
+  Map<String, dynamic> _session(String id) => store.sessions
+      .firstWhere((s) => s['id'].toString() == id, orElse: () => {'id': id});
 
   @override
   Widget build(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
     final p = projet;
-    return Scaffold(
-      // Vue graphe : tout l'écran en sombre, comme n8n.
-      backgroundColor: vueListe ? t.secondaryBackground : PaletteN8n.fond,
-      appBar: AppBar(
-        backgroundColor: vueListe ? t.secondaryBackground : PaletteN8n.fond,
-        foregroundColor: vueListe ? t.primaryText : PaletteN8n.texte,
-        surfaceTintColor: Colors.transparent,
-        title: Text(p?.nom ?? 'Projet',
-            style: t.titleMedium.copyWith(color: vueListe ? t.primaryText : PaletteN8n.texte)),
-        actions: [
-          IconButton(
-            tooltip: vueListe ? 'Vue graphe' : 'Vue liste',
-            icon: Icon(vueListe ? Icons.account_tree_rounded : Icons.view_list_rounded),
-            onPressed: () => setState(() => vueListe = !vueListe),
-          ),
-          IconButton(
-            tooltip: 'Actualiser',
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () async {
-              await store.charger();
-              await _reconstruire();
-            },
-          ),
-        ],
-      ),
-      body: p == null
-          ? Center(child: Text('Projet introuvable.', style: t.bodyMedium))
-          : graphe == null
-              ? const Center(child: CircularProgressIndicator())
-              : Column(children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-                    child: Row(children: [
-                      Expanded(
-                        child: Text(
-                          '${p.sessions.length} session(s) · ${p.agentsActifs} active(s) · liens : ${graphe!.source}',
-                          style: t.labelSmall.copyWith(color: vueListe ? t.secondaryText : PaletteN8n.texteDoux),
+    // Toute la page en sombre, comme n8n (vue graphe et vue liste).
+    return Theme(
+      data: themeN8n(context),
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(p?.nom ?? 'Projet',
+              maxLines: 1, overflow: TextOverflow.ellipsis),
+          actions: [
+            IconButton(
+              tooltip: vueListe ? 'Vue graphe' : 'Vue liste',
+              icon: Icon(vueListe
+                  ? Icons.account_tree_rounded
+                  : Icons.view_list_rounded),
+              onPressed: () => setState(() => vueListe = !vueListe),
+            ),
+            IconButton(
+              tooltip: 'Actualiser',
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: () async {
+                await store.charger();
+                await _reconstruire();
+              },
+            ),
+          ],
+        ),
+        body: p == null
+            ? const Center(
+                child: Text('Projet introuvable.', style: TexteN8n.corps))
+            : graphe == null
+                ? const Center(child: CircularProgressIndicator())
+                : Column(children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(18, 2, 18, 10),
+                      child: Row(children: [
+                        Expanded(
+                          child: Text(
+                            '${p.sessions.length} session(s) · ${p.agentsActifs} active(s) · liens : ${graphe!.source}',
+                            style: TexteN8n.doux,
+                          ),
                         ),
-                      ),
-                    ]),
-                  ),
-                  Expanded(child: vueListe ? _liste(context) : _graphe(context)),
-                ]),
+                      ]),
+                    ),
+                    Expanded(
+                        child: vueListe ? _liste(context) : _graphe(context)),
+                  ]),
+      ),
     );
   }
 
   Widget _liste(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
     final g = graphe!;
     final parents = {for (final l in g.liens) l.vers: l.de};
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 40),
-      itemCount: g.sessions.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, i) {
-        final s = _session(g.sessions[i]['id'].toString());
-        final statut = statutDe(s);
-        final parent = parents[s['id'].toString()];
-        return Material(
-          color: t.primaryBackground,
-          borderRadius: BorderRadius.circular(12),
-          child: ListTile(
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12), side: BorderSide(color: t.alternate)),
-            leading: Pastille(statut: statut, taille: 12),
-            title: Text(nomDe(s), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.bodyMedium),
-            subtitle: Text(
-              [
-                modeleDe(s),
-                libelleStatut(statut),
-                if (parent != null) '↖ ${nomDe(_session(parent))}',
-              ].where((x) => x.isNotEmpty).join(' · '),
-              maxLines: 2,
-              style: t.labelSmall.copyWith(color: t.secondaryText),
-            ),
+    return FondPoints(
+      child: ListView.separated(
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 40),
+        itemCount: g.sessions.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        itemBuilder: (context, i) {
+          final s = _session(g.sessions[i]['id'].toString());
+          final statut = statutDe(s);
+          final parent = parents[s['id'].toString()];
+          final a = apparenceAgent(s);
+          final actif = statut == 'ACTIVE' || statut == 'STARTING';
+          return CarteN8n(
+            accent: actif || statut == 'AWAITING_INPUT'
+                ? couleurStatutN8n(statut)
+                : null,
+            halo: actif,
+            padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
             onTap: () => ouvrirDetailAgent(context, s),
-          ),
-        );
-      },
+            child: Row(children: [
+              BlocIcone(icone: a.icone, couleur: a.couleur, taille: 42),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(nomDe(s),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TexteN8n.fort),
+                      const SizedBox(height: 3),
+                      Text('${a.court} · ${modeleDe(s)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TexteN8n.doux),
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          libelleStatut(statut),
+                          if (parent != null)
+                            'piloté par ${nomDe(_session(parent))}'
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TexteN8n.doux
+                            .copyWith(color: couleurStatutN8n(statut)),
+                      ),
+                    ]),
+              ),
+            ]),
+          );
+        },
+      ),
     );
   }
 
   Widget _graphe(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
     final g = graphe!;
     if (g.sessions.isEmpty) {
-      return Center(child: Text('Aucune session dans ce projet.', style: t.bodyMedium));
+      return const Center(
+          child: Text('Aucune session dans ce projet.', style: TexteN8n.corps));
     }
     // Canevas façon n8n (voir canevas_n8n.dart). La clé force un nouveau cadrage si le graphe change.
     return CanevasAgents(

@@ -29,7 +29,8 @@ class GrapheProjet {
 }
 
 /// Lit un fichier texte sur le PC (via le démon Vicoa). Renvoie null s'il n'existe pas.
-Future<String?> lireFichierPc(String machineId, String dossier, String chemin) async {
+Future<String?> lireFichierPc(
+    String machineId, String dossier, String chemin) async {
   final r = await actions.VicoaWsClient.instance
       .callRpc(machineId, 'read-file', {'cwd': dossier, 'path': chemin});
   if (r['error'] != null) return null;
@@ -39,7 +40,9 @@ Future<String?> lireFichierPc(String machineId, String dossier, String chemin) a
 /// Écrit un fichier texte sur le PC (via le démon Vicoa). Renvoie l'erreur éventuelle.
 Future<String?> ecrireFichierPc(
     String machineId, String dossier, String chemin, String contenu) async {
-  final r = await actions.VicoaWsClient.instance.callRpc(machineId, 'write-file',
+  final r = await actions.VicoaWsClient.instance.callRpc(
+      machineId,
+      'write-file',
       {'cwd': dossier, 'path': chemin, 'content': contenu, 'force': true});
   return r['error']?.toString();
 }
@@ -75,11 +78,15 @@ Future<GrapheProjet> construireGraphe(ProjetPerso projet) async {
             for (final l in brut.whereType<Map>()) {
               final de = _trouver(sessions, l['de']?.toString());
               final vers = _trouver(sessions, l['vers']?.toString());
-              if (de != null && vers != null && de != vers) liens.add(LienAgent(de, vers));
+              if (de != null && vers != null && de != vers) {
+                liens.add(LienAgent(de, vers));
+              }
             }
           } else if (orch != null) {
             for (final s in sessions) {
-              if (s['id'].toString() != orch) liens.add(LienAgent(orch, s['id'].toString()));
+              if (s['id'].toString() != orch) {
+                liens.add(LienAgent(orch, s['id'].toString()));
+              }
             }
           }
           return GrapheProjet(sessions, liens, 'hub.json');
@@ -99,7 +106,8 @@ Future<GrapheProjet> construireGraphe(ProjetPerso projet) async {
     final principal = orchs.first;
     final liens = [
       for (final s in sessions)
-        if (s['id'].toString() != principal) LienAgent(principal, s['id'].toString()),
+        if (s['id'].toString() != principal)
+          LienAgent(principal, s['id'].toString()),
     ];
     return GrapheProjet(sessions, liens, 'règle « orch »');
   }
@@ -126,7 +134,9 @@ class DispositionGraphe {
       aUnParent.add(l.vers);
     }
     final colonne = <String, int>{};
-    final racines = ids.where((id) => !aUnParent.contains(id) && enfants.containsKey(id)).toList();
+    final racines = ids
+        .where((id) => !aUnParent.contains(id) && enfants.containsKey(id))
+        .toList();
     final file = <String>[...racines];
     for (final r in racines) {
       colonne[r] = 0;
@@ -142,7 +152,9 @@ class DispositionGraphe {
     }
     // Sessions sans lien : colonnes de 6, à droite du flux.
     final isoles = ids.where((id) => !colonne.containsKey(id)).toList();
-    final premiereLibre = colonne.isEmpty ? 0 : colonne.values.reduce((a, b) => a > b ? a : b) + 1;
+    final premiereLibre = colonne.isEmpty
+        ? 0
+        : colonne.values.reduce((a, b) => a > b ? a : b) + 1;
     for (var i = 0; i < isoles.length; i++) {
       colonne[isoles[i]] = premiereLibre + i ~/ parColonneIsoles;
     }
@@ -164,7 +176,8 @@ class DispositionGraphe {
         );
       }
     }
-    final nbColonnes = parColonne.keys.fold<int>(0, (a, b) => a > b ? a : b) + 1;
+    final nbColonnes =
+        parColonne.keys.fold<int>(0, (a, b) => a > b ? a : b) + 1;
     largeur = marge * 2 + nbColonnes * (largeurNoeud + ecartX) - ecartX;
     hauteur = marge * 2 + hauteurMax;
   }

@@ -7,18 +7,21 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '/custom_code/actions/index.dart' as actions;
-import '/custom_code/widgets/tool_use_group.dart' show isToolUseContent, summarizeToolMessage;
-import '/flutter_flow/flutter_flow_theme.dart';
+import '/custom_code/widgets/tool_use_group.dart'
+    show isToolUseContent, summarizeToolMessage;
 import '/index.dart' show AgentChatWidget;
-import 'perso_commun.dart';
+import 'canevas_n8n.dart' show apparenceAgent;
+import 'perso_commun.dart' show ilYA, libelleStatut;
 import 'perso_store.dart';
+import 'perso_theme.dart';
 
-Future<void> ouvrirDetailAgent(BuildContext context, Map<String, dynamic> session) {
+Future<void> ouvrirDetailAgent(
+    BuildContext context, Map<String, dynamic> session) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: FlutterFlowTheme.of(context).secondaryBackground,
+    backgroundColor: PaletteN8n.carte,
     shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     builder: (_) => DraggableScrollableSheet(
@@ -26,8 +29,11 @@ Future<void> ouvrirDetailAgent(BuildContext context, Map<String, dynamic> sessio
       initialChildSize: 0.75,
       maxChildSize: 0.95,
       minChildSize: 0.4,
-      builder: (context, defilement) =>
-          _DetailAgent(sessionId: session['id'].toString(), defilement: defilement),
+      builder: (context, defilement) => Theme(
+        data: themeN8n(context),
+        child: _DetailAgent(
+            sessionId: session['id'].toString(), defilement: defilement),
+      ),
     ),
   );
 }
@@ -49,8 +55,9 @@ class _DetailAgentState extends State<_DetailAgent> {
   bool chargement = true, envoi = false;
   StreamSubscription? _sub;
 
-  Map<String, dynamic> get session => store.sessions
-      .firstWhere((s) => s['id'].toString() == widget.sessionId, orElse: () => {'id': widget.sessionId});
+  Map<String, dynamic> get session =>
+      store.sessions.firstWhere((s) => s['id'].toString() == widget.sessionId,
+          orElse: () => {'id': widget.sessionId});
 
   @override
   void initState() {
@@ -88,11 +95,15 @@ class _DetailAgentState extends State<_DetailAgent> {
   Future<void> _charger() async {
     try {
       final liste = await actions.apiGetInstanceMessages(widget.sessionId);
-      messages = liste.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
+      messages = liste
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
       final taskId = session['task_id']?.toString();
       if (taskId != null && taskId.isNotEmpty) {
         final taches = await actions.apiGetTasks();
-        final t = taches.whereType<Map>().where((x) => x['id']?.toString() == taskId);
+        final t =
+            taches.whereType<Map>().where((x) => x['id']?.toString() == taskId);
         if (t.isNotEmpty) tache = (t.first['title'] ?? '').toString();
       }
     } catch (_) {
@@ -109,8 +120,8 @@ class _DetailAgentState extends State<_DetailAgent> {
     if (!mounted) return;
     setState(() => envoi = false);
     if (r == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Envoi impossible. L'agent est-il joignable ?")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Envoi impossible. L'agent est-il joignable ?")));
       return;
     }
     saisie.clear();
@@ -120,16 +131,20 @@ class _DetailAgentState extends State<_DetailAgent> {
 
   @override
   Widget build(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
     final s = session;
     final statut = statutDe(s);
-    final textes = messages.where((m) => !isToolUseContent((m['content'] ?? '').toString())).toList();
+    final a = apparenceAgent(s);
+    final textes = messages
+        .where((m) => !isToolUseContent((m['content'] ?? '').toString()))
+        .toList();
     final outils = messages
         .where((m) => isToolUseContent((m['content'] ?? '').toString()))
         .map((m) => summarizeToolMessage((m['content'] ?? '').toString()))
         .toList();
-    final derniers = textes.length > 8 ? textes.sublist(textes.length - 8) : textes;
-    final derniersOutils = outils.length > 10 ? outils.sublist(outils.length - 10) : outils;
+    final derniers =
+        textes.length > 8 ? textes.sublist(textes.length - 8) : textes;
+    final derniersOutils =
+        outils.length > 10 ? outils.sublist(outils.length - 10) : outils;
 
     return Column(children: [
       Expanded(
@@ -139,29 +154,68 @@ class _DetailAgentState extends State<_DetailAgent> {
           children: [
             Center(
               child: Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(color: t.alternate, borderRadius: BorderRadius.circular(2)),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: PaletteN8n.lien,
+                    borderRadius: BorderRadius.circular(2)),
               ),
             ),
             const SizedBox(height: 12),
             Row(children: [
-              Pastille(statut: statut, taille: 12),
-              const SizedBox(width: 8),
-              Expanded(child: Text(nomDe(s), style: t.titleMedium)),
+              BlocIcone(icone: a.icone, couleur: a.couleur, taille: 46),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(nomDe(s),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TexteN8n.sousTitre),
+                      const SizedBox(height: 3),
+                      Text('${a.court} · ${modeleDe(s)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TexteN8n.doux),
+                    ]),
+              ),
             ]),
-            const SizedBox(height: 4),
-            Text('${modeleDe(s)} · ${libelleStatut(statut)} · ${ilYA(dateDe(s))}',
-                style: t.labelSmall.copyWith(color: t.secondaryText)),
+            const SizedBox(height: 10),
+            Row(children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: couleurStatutN8n(statut).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                      color: couleurStatutN8n(statut).withValues(alpha: 0.5)),
+                ),
+                child: Text(libelleStatut(statut),
+                    style: TexteN8n.doux.copyWith(
+                        color: couleurStatutN8n(statut),
+                        fontWeight: FontWeight.w600)),
+              ),
+              const SizedBox(width: 8),
+              Text(ilYA(dateDe(s)), style: TexteN8n.doux),
+            ]),
             const SizedBox(height: 14),
-            _Section(titre: 'Tâche en cours', enfant: Text(
-              tache ?? (s['latest_message'] ?? 'Pas de tâche liée.').toString(),
-              maxLines: 6, overflow: TextOverflow.ellipsis, style: t.bodyMedium)),
+            _Section(
+                titre: 'Tâche en cours',
+                enfant: Text(
+                    tache ??
+                        (s['latest_message'] ?? 'Pas de tâche liée.')
+                            .toString(),
+                    maxLines: 6,
+                    overflow: TextOverflow.ellipsis,
+                    style: TexteN8n.corps)),
             _Section(
               titre: 'Derniers messages',
               enfant: chargement
                   ? const LinearProgressIndicator()
                   : derniers.isEmpty
-                      ? Text('Aucun message.', style: t.bodySmall)
+                      ? const Text('Aucun message.', style: TexteN8n.doux)
                       : Column(children: [
                           for (final m in derniers) _Bulle(message: m),
                         ]),
@@ -169,20 +223,46 @@ class _DetailAgentState extends State<_DetailAgent> {
             _Section(
               titre: 'Outils utilisés',
               enfant: derniersOutils.isEmpty
-                  ? Text('Aucun outil pour le moment.', style: t.bodySmall)
+                  ? const Text('Aucun outil pour le moment.',
+                      style: TexteN8n.doux)
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         for (final o in derniersOutils.reversed)
                           Padding(
                             padding: const EdgeInsets.symmetric(vertical: 3),
-                            child: Text('• ${o.name} — ${o.description}',
-                                maxLines: 2, overflow: TextOverflow.ellipsis, style: t.bodySmall),
+                            child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    margin:
+                                        const EdgeInsets.only(right: 8, top: 1),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: PaletteN8n.accent
+                                          .withValues(alpha: 0.14),
+                                      borderRadius: BorderRadius.circular(5),
+                                    ),
+                                    child: Text(o.name,
+                                        style: const TextStyle(
+                                            color: PaletteN8n.accent,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600)),
+                                  ),
+                                  Expanded(
+                                    child: Text(o.description,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TexteN8n.doux),
+                                  ),
+                                ]),
                           ),
                       ],
                     ),
             ),
             TextButton.icon(
+              style: TextButton.styleFrom(foregroundColor: PaletteN8n.accent),
               icon: const Icon(Icons.open_in_new_rounded, size: 18),
               label: const Text('Ouvrir la conversation complète'),
               onPressed: () {
@@ -198,7 +278,8 @@ class _DetailAgentState extends State<_DetailAgent> {
       SafeArea(
         top: false,
         child: Padding(
-          padding: EdgeInsets.fromLTRB(12, 6, 12, 8 + MediaQuery.viewInsetsOf(context).bottom),
+          padding: EdgeInsets.fromLTRB(
+              12, 6, 12, 8 + MediaQuery.viewInsetsOf(context).bottom),
           child: Row(children: [
             Expanded(
               child: TextField(
@@ -207,21 +288,26 @@ class _DetailAgentState extends State<_DetailAgent> {
                 maxLines: 4,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _envoyer(),
-                decoration: InputDecoration(
-                  hintText: 'Donner une instruction…',
-                  filled: true,
-                  fillColor: t.primaryBackground,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: t.alternate)),
-                ),
+                style: TexteN8n.corps,
+                decoration:
+                    const InputDecoration(hintText: 'Donner une instruction…'),
               ),
             ),
             const SizedBox(width: 8),
             IconButton.filled(
+              style: IconButton.styleFrom(
+                backgroundColor: PaletteN8n.accent,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(48, 48),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
               onPressed: envoi ? null : _envoyer,
               icon: envoi
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.send_rounded),
             ),
           ]),
@@ -238,18 +324,18 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
     return Container(
+      width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: t.primaryBackground,
+        color: PaletteN8n.champ,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: t.alternate),
+        border: Border.all(color: PaletteN8n.bord),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(titre, style: t.labelSmall.copyWith(color: t.secondaryText, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 6),
+        Text(titre.toUpperCase(), style: TexteN8n.etiquette),
+        const SizedBox(height: 8),
         enfant,
       ]),
     );
@@ -262,20 +348,33 @@ class _Bulle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
-    final deMoi = (message['sender_type'] ?? '').toString().toLowerCase() == 'user';
+    final deMoi =
+        (message['sender_type'] ?? '').toString().toLowerCase() == 'user';
     return Align(
       alignment: deMoi ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 3),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         constraints: const BoxConstraints(maxWidth: 320),
         decoration: BoxDecoration(
-          color: deMoi ? t.primary.withValues(alpha: 0.15) : t.secondaryBackground,
-          borderRadius: BorderRadius.circular(10),
+          color: deMoi
+              ? PaletteN8n.accent.withValues(alpha: 0.18)
+              : PaletteN8n.carteHaut,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(12),
+            topRight: const Radius.circular(12),
+            bottomLeft: Radius.circular(deMoi ? 12 : 3),
+            bottomRight: Radius.circular(deMoi ? 3 : 12),
+          ),
+          border: Border.all(
+              color: deMoi
+                  ? PaletteN8n.accent.withValues(alpha: 0.4)
+                  : PaletteN8n.bord),
         ),
         child: Text((message['content'] ?? '').toString(),
-            maxLines: 6, overflow: TextOverflow.ellipsis, style: t.bodySmall),
+            maxLines: 6,
+            overflow: TextOverflow.ellipsis,
+            style: TexteN8n.corps.copyWith(fontSize: 13.5)),
       ),
     );
   }

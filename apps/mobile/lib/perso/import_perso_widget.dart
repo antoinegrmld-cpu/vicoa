@@ -10,10 +10,10 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '/flutter_flow/flutter_flow_theme.dart';
 import 'perso_commun.dart';
 import 'perso_hub.dart' show ecrireFichierPc, lireFichierPc;
 import 'perso_store.dart';
+import 'perso_theme.dart';
 
 const String kDossierImport = r'C:\hub-agents\vicoa-import';
 
@@ -67,20 +67,25 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
     if (store.machines.isEmpty) await store.charger();
     machine = store.machineEnLigne();
     if (machine == null) {
-      setState(() => erreur = 'Aucun PC relié à Vicoa. Vérifie que « vicoa daemon » tourne.');
+      setState(() => erreur =
+          'Aucun PC relié à Vicoa. Vérifie que « vicoa daemon » tourne.');
       return;
     }
     try {
-      final texte = await lireFichierPc(machine!, kDossierImport, 'catalogue.json');
+      final texte =
+          await lireFichierPc(machine!, kDossierImport, 'catalogue.json');
       if (texte == null) {
         setState(() => erreur =
             "Liste des sessions introuvable sur le PC. Le service d'import tourne-t-il ? "
-            '(raccourci « Vicoa » du dossier Démarrage)');
+                '(raccourci « Vicoa » du dossier Démarrage)');
         return;
       }
       final d = jsonDecode(texte) as Map;
       setState(() {
-        catalogue = (d['sessions'] as List).whereType<Map>().map((s) => Map<String, dynamic>.from(s)).toList();
+        catalogue = (d['sessions'] as List)
+            .whereType<Map>()
+            .map((s) => Map<String, dynamic>.from(s))
+            .toList();
         majCatalogue = d['mis_a_jour']?.toString();
       });
     } catch (e) {
@@ -90,16 +95,21 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
 
   Future<void> _ecrireDemande(Map<String, dynamic> d) async {
     final err = await ecrireFichierPc(
-        machine!, kDossierImport, 'demandes/$demandeId.json', const JsonEncoder.withIndent('  ').convert(d));
+        machine!,
+        kDossierImport,
+        'demandes/$demandeId.json',
+        const JsonEncoder.withIndent('  ').convert(d));
     if (err != null) throw Exception(err);
   }
 
   /// Relit la demande toutes les 3 s jusqu'à ce que le service du PC ait répondu.
-  void _attendre(Set<String> etatsFinaux, void Function(Map<String, dynamic>) quandPret) {
+  void _attendre(
+      Set<String> etatsFinaux, void Function(Map<String, dynamic>) quandPret) {
     _attente?.cancel();
     _attente = Timer.periodic(const Duration(seconds: 3), (timer) async {
       try {
-        final texte = await lireFichierPc(machine!, kDossierImport, 'demandes/$demandeId.json');
+        final texte = await lireFichierPc(
+            machine!, kDossierImport, 'demandes/$demandeId.json');
         if (texte == null) return;
         final d = Map<String, dynamic>.from(jsonDecode(texte) as Map);
         if (d['etat'] == 'erreur') {
@@ -134,7 +144,9 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
       await _ecrireDemande({
         'etat': 'selection',
         'organiser': true,
-        'sessions': [for (final s in choisies) {'agent': s['agent'], 'id': s['id']}],
+        'sessions': [
+          for (final s in choisies) {'agent': s['agent'], 'id': s['id']}
+        ],
       });
     } catch (e) {
       setState(() {
@@ -144,10 +156,15 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
       return;
     }
     _attendre({'proposition'}, (d) {
-      proposition = (d['proposition'] as List).whereType<Map>().map((p) => Map<String, dynamic>.from(p)).toList();
+      proposition = (d['proposition'] as List)
+          .whereType<Map>()
+          .map((p) => Map<String, dynamic>.from(p))
+          .toList();
       for (final p in proposition) {
-        titres[p['id']] = TextEditingController(text: p['titre']?.toString() ?? '');
-        projets[p['id']] = TextEditingController(text: p['projet']?.toString() ?? '');
+        titres[p['id']] =
+            TextEditingController(text: p['titre']?.toString() ?? '');
+        projets[p['id']] =
+            TextEditingController(text: p['projet']?.toString() ?? '');
       }
       setState(() => etape = _Etape.proposition);
     });
@@ -163,7 +180,11 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
       messageAttente = 'Import en cours sur le PC…';
     });
     try {
-      await _ecrireDemande({'etat': 'confirmation', 'organiser': true, 'proposition': proposition});
+      await _ecrireDemande({
+        'etat': 'confirmation',
+        'organiser': true,
+        'proposition': proposition
+      });
     } catch (e) {
       setState(() {
         erreur = 'Envoi impossible : $e';
@@ -172,7 +193,10 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
       return;
     }
     _attendre({'termine'}, (d) {
-      resultats = (d['resultats'] as List).whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList();
+      resultats = (d['resultats'] as List)
+          .whereType<Map>()
+          .map((r) => Map<String, dynamic>.from(r))
+          .toList();
       setState(() => etape = _Etape.resultat);
       store.charger();
     });
@@ -180,45 +204,50 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
-    return Scaffold(
-      backgroundColor: t.secondaryBackground,
-      appBar: AppBar(
-        backgroundColor: t.secondaryBackground,
-        title: Text('Importer des sessions', style: t.titleMedium),
-        actions: [
-          if (etape == _Etape.choix)
-            IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _chargerCatalogue),
-        ],
-      ),
-      body: Column(children: [
-        if (erreur != null)
-          Container(
-            width: double.infinity,
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-                color: t.error.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-            child: Text(erreur!, style: t.bodySmall.copyWith(color: t.error)),
-          ),
-        Expanded(child: switch (etape) {
-          _Etape.choix => _choix(context),
-          _Etape.attente => Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                Text(messageAttente ?? '', style: t.bodyMedium),
-              ]),
+    const t = _Couleurs();
+    return Theme(
+      data: themeN8n(context),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Importer des sessions'),
+          actions: [
+            if (etape == _Etape.choix)
+              IconButton(
+                  icon: const Icon(Icons.refresh_rounded),
+                  onPressed: _chargerCatalogue),
+          ],
+        ),
+        body: Column(children: [
+          if (erreur != null)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                  color: t.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10)),
+              child: Text(erreur!, style: t.bodySmall.copyWith(color: t.error)),
             ),
-          _Etape.proposition => _proposition(context),
-          _Etape.resultat => _resultat(context),
-        }),
-      ]),
+          Expanded(
+              child: switch (etape) {
+            _Etape.choix => _choix(context),
+            _Etape.attente => Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(messageAttente ?? '', style: t.bodyMedium),
+                ]),
+              ),
+            _Etape.proposition => _proposition(context),
+            _Etape.resultat => _resultat(context),
+          }),
+        ]),
+      ),
     );
   }
 
   Widget _choix(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
+    const t = _Couleurs();
     final visibles = catalogue.where((s) {
       if (masquerImportees && s['deja_importee'] == true) return false;
       if (filtreAgent != 'tous' && s['agent'] != filtreAgent) return false;
@@ -227,19 +256,27 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-        child: Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
-          for (final f in const [('tous', 'Toutes'), ('opencode', 'OpenCode'), ('claude-code', 'Claude Code')])
-            ChoiceChip(
-              label: Text(f.$2),
-              selected: filtreAgent == f.$1,
-              onSelected: (_) => setState(() => filtreAgent = f.$1),
-            ),
-          FilterChip(
-            label: const Text('Masquer les déjà importées'),
-            selected: masquerImportees,
-            onSelected: (v) => setState(() => masquerImportees = v),
-          ),
-        ]),
+        child: Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              for (final f in const [
+                ('tous', 'Toutes'),
+                ('opencode', 'OpenCode'),
+                ('claude-code', 'Claude Code')
+              ])
+                ChoiceChip(
+                  label: Text(f.$2),
+                  selected: filtreAgent == f.$1,
+                  onSelected: (_) => setState(() => filtreAgent = f.$1),
+                ),
+              FilterChip(
+                label: const Text('Masquer les déjà importées'),
+                selected: masquerImportees,
+                onSelected: (v) => setState(() => masquerImportees = v),
+              ),
+            ]),
       ),
       if (majCatalogue != null)
         Padding(
@@ -254,20 +291,30 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
             final s = visibles[i];
             final cle = _cle(s);
             final active = s['active_recemment'] == true;
-            return CheckboxListTile(
-              value: coches.contains(cle),
-              onChanged: (v) => setState(() => v == true ? coches.add(cle) : coches.remove(cle)),
-              title: Text(s['titre']?.toString() ?? '', maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: t.bodyMedium),
-              subtitle: Text(
-                '${s['agent'] == 'opencode' ? 'OpenCode' : 'Claude Code'} · '
-                '${ilYA(DateTime.tryParse(s['derniere_activite']?.toString() ?? ''))}'
-                '${active ? ' · ⚠ utilisée en ce moment' : ''}'
-                '${s['deja_importee'] == true ? ' · déjà importée' : ''}\n${s['dossier'] ?? ''}',
-                maxLines: 3,
-                style: t.labelSmall.copyWith(color: active ? t.warning : t.secondaryText),
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: CarteN8n(
+                accent: coches.contains(cle) ? PaletteN8n.accent : null,
+                child: CheckboxListTile(
+                  value: coches.contains(cle),
+                  onChanged: (v) => setState(
+                      () => v == true ? coches.add(cle) : coches.remove(cle)),
+                  title: Text(s['titre']?.toString() ?? '',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.bodyMedium),
+                  subtitle: Text(
+                    '${s['agent'] == 'opencode' ? 'OpenCode' : 'Claude Code'} · '
+                    '${ilYA(DateTime.tryParse(s['derniere_activite']?.toString() ?? ''))}'
+                    '${active ? ' · ⚠ utilisée en ce moment' : ''}'
+                    '${s['deja_importee'] == true ? ' · déjà importée' : ''}\n${s['dossier'] ?? ''}',
+                    maxLines: 3,
+                    style: t.labelSmall
+                        .copyWith(color: active ? t.warning : t.secondaryText),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
               ),
-              controlAffinity: ListTileControlAffinity.leading,
             );
           },
         ),
@@ -292,7 +339,7 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
   }
 
   Widget _proposition(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
+    const t = _Couleurs();
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -316,18 +363,29 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: t.alternate),
               ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(p['agent'] == 'opencode' ? 'OpenCode → session Vicoa' : 'Claude Code → tâche Vicoa',
-                    style: t.labelSmall.copyWith(color: t.secondaryText)),
-                TextField(controller: titres[p['id']], decoration: const InputDecoration(labelText: 'Titre')),
-                TextField(controller: projets[p['id']], decoration: const InputDecoration(labelText: 'Projet')),
-                if ((p['resume'] ?? '').toString().isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(p['resume'].toString(), maxLines: 5, overflow: TextOverflow.ellipsis,
-                        style: t.bodySmall),
-                  ),
-              ]),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                        p['agent'] == 'opencode'
+                            ? 'OpenCode → session Vicoa'
+                            : 'Claude Code → tâche Vicoa',
+                        style: t.labelSmall.copyWith(color: t.secondaryText)),
+                    TextField(
+                        controller: titres[p['id']],
+                        decoration: const InputDecoration(labelText: 'Titre')),
+                    TextField(
+                        controller: projets[p['id']],
+                        decoration: const InputDecoration(labelText: 'Projet')),
+                    if ((p['resume'] ?? '').toString().isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(p['resume'].toString(),
+                            maxLines: 5,
+                            overflow: TextOverflow.ellipsis,
+                            style: t.bodySmall),
+                      ),
+                  ]),
             );
           },
         ),
@@ -354,25 +412,33 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
   }
 
   Widget _resultat(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
+    const t = _Couleurs();
     final ok = resultats.where((r) => r['ok'] == true).length;
     return Column(children: [
       Padding(
         padding: const EdgeInsets.all(16),
-        child: Text('$ok import(s) réussi(s) sur ${resultats.length}.', style: t.titleMedium),
+        child: Text('$ok import(s) réussi(s) sur ${resultats.length}.',
+            style: t.titleMedium),
       ),
       Expanded(
         child: ListView(children: [
           for (final r in resultats)
             ListTile(
-              leading: Icon(r['ok'] == true ? Icons.check_circle_rounded : Icons.error_rounded,
+              leading: Icon(
+                  r['ok'] == true
+                      ? Icons.check_circle_rounded
+                      : Icons.error_rounded,
                   color: r['ok'] == true ? t.success : t.error),
               title: Text(
-                  proposition.firstWhere((p) => p['id'] == r['id'], orElse: () => {'titre': r['id']})['titre']
+                  proposition
+                      .firstWhere((p) => p['id'] == r['id'],
+                          orElse: () => {'titre': r['id']})['titre']
                       .toString(),
                   style: t.bodyMedium),
-              subtitle: Text(r['ok'] == true ? 'Importée' : (r['detail'] ?? '').toString(),
-                  maxLines: 3, style: t.labelSmall),
+              subtitle: Text(
+                  r['ok'] == true ? 'Importée' : (r['detail'] ?? '').toString(),
+                  maxLines: 3,
+                  style: t.labelSmall),
             ),
         ]),
       ),
@@ -392,4 +458,20 @@ class _ImportPersoWidgetState extends State<ImportPersoWidget> {
       ),
     ]);
   }
+}
+
+/// Couleurs et textes de l'écran, branchés sur la palette sombre façon n8n.
+class _Couleurs {
+  const _Couleurs();
+  Color get secondaryBackground => PaletteN8n.fond;
+  Color get primaryBackground => PaletteN8n.carte;
+  Color get alternate => PaletteN8n.bord;
+  Color get secondaryText => PaletteN8n.texteDoux;
+  Color get error => PaletteN8n.rouge;
+  Color get warning => PaletteN8n.orange;
+  Color get success => PaletteN8n.vert;
+  TextStyle get titleMedium => TexteN8n.sousTitre;
+  TextStyle get bodyMedium => TexteN8n.corps;
+  TextStyle get bodySmall => TexteN8n.corps.copyWith(fontSize: 13);
+  TextStyle get labelSmall => TexteN8n.doux;
 }

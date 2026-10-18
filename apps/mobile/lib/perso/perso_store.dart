@@ -27,7 +27,8 @@ const Set<String> kStatutsActifs = {
 class ProjetPerso {
   ProjetPerso({required this.cle, required this.nom, this.projet});
 
-  final String cle; // project_id, sinon nom du dossier (même règle que l'accueil d'origine)
+  final String
+      cle; // project_id, sinon nom du dossier (même règle que l'accueil d'origine)
   final String nom;
   final Map<String, dynamic>? projet;
   final List<Map<String, dynamic>> sessions = [];
@@ -211,7 +212,8 @@ class PersoStore extends ChangeNotifier {
     sessions[i] = {
       ...sessions[i],
       'latest_message': data['content'] ?? sessions[i]['latest_message'],
-      'latest_message_at': data['created_at'] ?? DateTime.now().toIso8601String(),
+      'latest_message_at':
+          data['created_at'] ?? DateTime.now().toIso8601String(),
     };
     notifyListeners();
   }
@@ -243,8 +245,8 @@ class PersoStore extends ChangeNotifier {
     // Projets Vicoa encore vides : on les montre aussi (ex. créés à l'import).
     for (final p in projets) {
       final cle = p['id'].toString();
-      groupes.putIfAbsent(
-          cle, () => ProjetPerso(cle: cle, nom: p['name'].toString(), projet: p));
+      groupes.putIfAbsent(cle,
+          () => ProjetPerso(cle: cle, nom: p['name'].toString(), projet: p));
     }
     final liste = groupes.values.toList()
       ..sort((a, b) {

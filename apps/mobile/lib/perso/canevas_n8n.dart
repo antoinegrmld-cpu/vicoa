@@ -3,45 +3,13 @@
 // flux de gauche à droite, poignées, courbes lissées animées quand l'agent travaille,
 // commandes zoom + / zoom − / tout afficher.
 
-import 'dart:ui' show PointMode;
-
 import 'package:flutter/material.dart';
 
 import 'detail_agent_sheet.dart';
 import 'perso_commun.dart' show libelleStatut;
 import 'perso_hub.dart';
 import 'perso_store.dart';
-
-/// Palette sombre fixe (indépendante du thème clair/sombre du téléphone).
-class PaletteN8n {
-  static const fond = Color(0xFF1C1C21);
-  static const points = Color(0xFF34343C);
-  static const carte = Color(0xFF26262D);
-  static const carteHaut = Color(0xFF2C2C34);
-  static const bord = Color(0xFF3D3D47);
-  static const texte = Color(0xFFEDEDF2);
-  static const texteDoux = Color(0xFF9B9BA8);
-  static const lien = Color(0xFF5C5C68);
-  static const vert = Color(0xFF3DDC97);
-  static const orange = Color(0xFFF5A524);
-  static const rouge = Color(0xFFF25F5C);
-  static const commandes = Color(0xFF2A2A31);
-}
-
-Color couleurStatutN8n(String statut) {
-  switch (statut) {
-    case 'ACTIVE':
-    case 'STARTING':
-      return PaletteN8n.vert;
-    case 'AWAITING_INPUT':
-      return PaletteN8n.orange;
-    case 'FAILED':
-    case 'KILLED':
-      return PaletteN8n.rouge;
-    default:
-      return PaletteN8n.texteDoux;
-  }
-}
+import 'perso_theme.dart';
 
 class CanevasAgents extends StatefulWidget {
   const CanevasAgents({super.key, required this.graphe, required this.session});
@@ -55,10 +23,12 @@ class CanevasAgents extends StatefulWidget {
   State<CanevasAgents> createState() => _CanevasAgentsState();
 }
 
-class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProviderStateMixin {
+class _CanevasAgentsState extends State<CanevasAgents>
+    with SingleTickerProviderStateMixin {
   final controle = TransformationController();
-  late final AnimationController flux =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
+  late final AnimationController flux = AnimationController(
+      vsync: this, duration: const Duration(milliseconds: 1100))
+    ..repeat();
   Size? _taille;
   bool _cadre = false;
 
@@ -74,7 +44,8 @@ class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProvider
     if (t == null) return;
     // Tout faire tenir, sans descendre sous un zoom où les textes restent lisibles sur téléphone.
     const echelleMin = 0.7;
-    final ideale = [t.width / d.largeur, t.height / d.hauteur, 1.0].reduce((a, b) => a < b ? a : b);
+    final ideale = [t.width / d.largeur, t.height / d.hauteur, 1.0]
+        .reduce((a, b) => a < b ? a : b);
     final echelle = ideale < echelleMin ? echelleMin : ideale;
     final largeurVue = d.largeur * echelle, hauteurVue = d.hauteur * echelle;
     // Trop large : on cale le début du flux (l'orchestrateur) à gauche ; sinon on centre.
@@ -114,7 +85,8 @@ class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProvider
           child: RepaintBoundary(
             child: AnimatedBuilder(
               animation: controle,
-              builder: (_, __) => CustomPaint(painter: _GrillePoints(controle.value)),
+              builder: (_, __) =>
+                  CustomPaint(painter: GrillePoints(controle.value)),
             ),
           ),
         ),
@@ -171,12 +143,26 @@ class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProvider
               color: PaletteN8n.commandes,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: PaletteN8n.bord),
-              boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 14, offset: Offset(0, 4))],
+              boxShadow: const [
+                BoxShadow(
+                    color: Color(0x66000000),
+                    blurRadius: 14,
+                    offset: Offset(0, 4))
+              ],
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              _BoutonCommande(icone: Icons.fit_screen_rounded, aide: 'Tout afficher', action: () => _toutAfficher(d)),
-              _BoutonCommande(icone: Icons.add_rounded, aide: 'Zoom +', action: () => _zoom(1.25)),
-              _BoutonCommande(icone: Icons.remove_rounded, aide: 'Zoom −', action: () => _zoom(0.8)),
+              _BoutonCommande(
+                  icone: Icons.fit_screen_rounded,
+                  aide: 'Tout afficher',
+                  action: () => _toutAfficher(d)),
+              _BoutonCommande(
+                  icone: Icons.add_rounded,
+                  aide: 'Zoom +',
+                  action: () => _zoom(1.25)),
+              _BoutonCommande(
+                  icone: Icons.remove_rounded,
+                  aide: 'Zoom −',
+                  action: () => _zoom(0.8)),
             ]),
           ),
         ),
@@ -186,7 +172,8 @@ class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProvider
 }
 
 class _BoutonCommande extends StatelessWidget {
-  const _BoutonCommande({required this.icone, required this.aide, required this.action});
+  const _BoutonCommande(
+      {required this.icone, required this.aide, required this.action});
   final IconData icone;
   final String aide;
   final VoidCallback action;
@@ -203,17 +190,44 @@ class _BoutonCommande extends StatelessWidget {
 /// Couleur et icône de l'agent (comme les icônes de nœuds n8n).
 ({Color couleur, IconData icone, String court}) apparenceAgent(Map s) {
   final type = '${s['agent_type_name'] ?? ''} ${modeleDe(s)}'.toLowerCase();
-  if (type.contains('claude')) return (couleur: const Color(0xFFE58A68), icone: Icons.auto_awesome_rounded, court: 'Claude');
-  if (type.contains('opencode') || type.contains('abliter')) {
-    return (couleur: const Color(0xFF5B9DFF), icone: Icons.terminal_rounded, court: 'OpenCode');
+  if (type.contains('claude')) {
+    return (
+      couleur: const Color(0xFFE58A68),
+      icone: Icons.auto_awesome_rounded,
+      court: 'Claude'
+    );
   }
-  if (type.contains('codex') || type.contains('gpt')) return (couleur: const Color(0xFF2CC497), icone: Icons.code_rounded, court: 'Codex');
-  if (type.contains('gemini')) return (couleur: const Color(0xFFA48BFF), icone: Icons.diamond_outlined, court: 'Gemini');
-  return (couleur: const Color(0xFFA0A0AE), icone: Icons.smart_toy_outlined, court: 'Agent');
+  if (type.contains('opencode') || type.contains('abliter')) {
+    return (
+      couleur: const Color(0xFF5B9DFF),
+      icone: Icons.terminal_rounded,
+      court: 'OpenCode'
+    );
+  }
+  if (type.contains('codex') || type.contains('gpt')) {
+    return (
+      couleur: const Color(0xFF2CC497),
+      icone: Icons.code_rounded,
+      court: 'Codex'
+    );
+  }
+  if (type.contains('gemini')) {
+    return (
+      couleur: const Color(0xFFA48BFF),
+      icone: Icons.diamond_outlined,
+      court: 'Gemini'
+    );
+  }
+  return (
+    couleur: const Color(0xFFA0A0AE),
+    icone: Icons.smart_toy_outlined,
+    court: 'Agent'
+  );
 }
 
 class _NoeudN8n extends StatelessWidget {
-  const _NoeudN8n({required this.session, required this.entree, required this.sortie});
+  const _NoeudN8n(
+      {required this.session, required this.entree, required this.sortie});
   final Map<String, dynamic> session;
   final bool entree, sortie;
 
@@ -223,7 +237,8 @@ class _NoeudN8n extends StatelessWidget {
     final a = apparenceAgent(session);
     final actif = statut == 'ACTIVE' || statut == 'STARTING';
     final couleurEtat = couleurStatutN8n(statut);
-    final bord = actif || statut == 'AWAITING_INPUT' ? couleurEtat : PaletteN8n.bord;
+    final bord =
+        actif || statut == 'AWAITING_INPUT' ? couleurEtat : PaletteN8n.bord;
     const rayon = 12.0;
 
     return Stack(clipBehavior: Clip.none, children: [
@@ -238,8 +253,15 @@ class _NoeudN8n extends StatelessWidget {
             ),
             border: Border.all(color: bord, width: actif ? 1.8 : 1.2),
             boxShadow: [
-              const BoxShadow(color: Color(0x73000000), blurRadius: 16, offset: Offset(0, 6)),
-              if (actif) BoxShadow(color: PaletteN8n.vert.withValues(alpha: 0.28), blurRadius: 18, spreadRadius: 1),
+              const BoxShadow(
+                  color: Color(0x73000000),
+                  blurRadius: 16,
+                  offset: Offset(0, 6)),
+              if (actif)
+                BoxShadow(
+                    color: PaletteN8n.vert.withValues(alpha: 0.28),
+                    blurRadius: 18,
+                    spreadRadius: 1),
             ],
           ),
           child: Material(
@@ -259,7 +281,8 @@ class _NoeudN8n extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: a.couleur.withValues(alpha: 0.16),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: a.couleur.withValues(alpha: 0.35)),
+                      border:
+                          Border.all(color: a.couleur.withValues(alpha: 0.35)),
                     ),
                     child: Icon(a.icone, color: a.couleur, size: 26),
                   ),
@@ -275,16 +298,26 @@ class _NoeudN8n extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                                color: PaletteN8n.texte, fontSize: 14.5, fontWeight: FontWeight.w600, height: 1.2)),
+                                color: PaletteN8n.texte,
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w600,
+                                height: 1.2)),
                         const SizedBox(height: 3),
                         Text('${a.court} · ${modeleDe(session)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: PaletteN8n.texteDoux, fontSize: 11.5, height: 1.2)),
+                            style: const TextStyle(
+                                color: PaletteN8n.texteDoux,
+                                fontSize: 11.5,
+                                height: 1.2)),
                         const SizedBox(height: 3),
                         Text(libelleStatut(statut),
                             maxLines: 1,
-                            style: TextStyle(color: couleurEtat, fontSize: 11.5, fontWeight: FontWeight.w500, height: 1.2)),
+                            style: TextStyle(
+                                color: couleurEtat,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                                height: 1.2)),
                       ],
                     ),
                   ),
@@ -295,8 +328,16 @@ class _NoeudN8n extends StatelessWidget {
         ),
       ),
       Positioned(right: 9, top: 9, child: _Badge(statut: statut)),
-      if (entree) Positioned(left: -7, top: DispositionGraphe.hauteurNoeud / 2 - 7, child: _Poignee(couleur: bord)),
-      if (sortie) Positioned(right: -7, top: DispositionGraphe.hauteurNoeud / 2 - 7, child: _Poignee(couleur: bord)),
+      if (entree)
+        Positioned(
+            left: -7,
+            top: DispositionGraphe.hauteurNoeud / 2 - 7,
+            child: _Poignee(couleur: bord)),
+      if (sortie)
+        Positioned(
+            right: -7,
+            top: DispositionGraphe.hauteurNoeud / 2 - 7,
+            child: _Poignee(couleur: bord)),
     ]);
   }
 }
@@ -312,7 +353,9 @@ class _Poignee extends StatelessWidget {
         decoration: BoxDecoration(
           color: PaletteN8n.fond,
           shape: BoxShape.circle,
-          border: Border.all(color: couleur == PaletteN8n.bord ? PaletteN8n.lien : couleur, width: 2),
+          border: Border.all(
+              color: couleur == PaletteN8n.bord ? PaletteN8n.lien : couleur,
+              width: 2),
         ),
       );
 }
@@ -327,15 +370,21 @@ class _Badge extends StatelessWidget {
       case 'ACTIVE':
       case 'STARTING':
         return const SizedBox(
-            width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: PaletteN8n.vert));
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+                strokeWidth: 2, color: PaletteN8n.vert));
       case 'AWAITING_INPUT':
-        return const Icon(Icons.pause_circle_filled_rounded, size: 17, color: PaletteN8n.orange);
+        return const Icon(Icons.pause_circle_filled_rounded,
+            size: 17, color: PaletteN8n.orange);
       case 'COMPLETED':
       case 'REVIEWED':
-        return const Icon(Icons.check_circle_rounded, size: 17, color: PaletteN8n.vert);
+        return const Icon(Icons.check_circle_rounded,
+            size: 17, color: PaletteN8n.vert);
       case 'FAILED':
       case 'KILLED':
-        return const Icon(Icons.error_rounded, size: 17, color: PaletteN8n.rouge);
+        return const Icon(Icons.error_rounded,
+            size: 17, color: PaletteN8n.rouge);
       default:
         return const Icon(Icons.circle, size: 9, color: PaletteN8n.lien);
     }
@@ -345,7 +394,11 @@ class _Badge extends StatelessWidget {
 /// Courbes lissées de la sortie (droite) d'un nœud vers l'entrée (gauche) du suivant.
 /// Agent destinataire au travail : courbe verte, halo léger, points lumineux qui défilent.
 class _Connexions extends CustomPainter {
-  _Connexions({required this.liens, required this.dispo, required this.phase, required this.actif});
+  _Connexions(
+      {required this.liens,
+      required this.dispo,
+      required this.phase,
+      required this.actif});
   final List<LienAgent> liens;
   final DispositionGraphe dispo;
   final double phase;
@@ -353,7 +406,8 @@ class _Connexions extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const w = DispositionGraphe.largeurNoeud, h = DispositionGraphe.hauteurNoeud;
+    const w = DispositionGraphe.largeurNoeud,
+        h = DispositionGraphe.hauteurNoeud;
     for (final l in liens) {
       final a = dispo.positions[l.de], b = dispo.positions[l.vers];
       if (a == null || b == null) continue;
@@ -362,7 +416,8 @@ class _Connexions extends CustomPainter {
       final tension = ((arrivee.dx - depart.dx).abs() * 0.5).clamp(40.0, 180.0);
       final chemin = Path()
         ..moveTo(depart.dx, depart.dy)
-        ..cubicTo(depart.dx + tension, depart.dy, arrivee.dx - tension, arrivee.dy, arrivee.dx, arrivee.dy);
+        ..cubicTo(depart.dx + tension, depart.dy, arrivee.dx - tension,
+            arrivee.dy, arrivee.dx, arrivee.dy);
       final enCours = actif(l.vers);
       final couleur = enCours ? PaletteN8n.vert : PaletteN8n.lien;
 
@@ -396,7 +451,9 @@ class _Connexions extends CustomPainter {
           ..color = const Color(0xFFCFFFE8);
         for (final m in chemin.computeMetrics()) {
           const espacement = 46.0;
-          for (var pos = (phase * espacement) % espacement; pos < m.length; pos += espacement) {
+          for (var pos = (phase * espacement) % espacement;
+              pos < m.length;
+              pos += espacement) {
             final t = m.getTangentForOffset(pos);
             if (t != null) canvas.drawCircle(t.position, 2.2, point);
           }
@@ -406,7 +463,8 @@ class _Connexions extends CustomPainter {
       final pointe = Path()
         ..moveTo(arrivee.dx + 2, arrivee.dy)
         ..lineTo(arrivee.dx - 8, arrivee.dy - 5.5)
-        ..quadraticBezierTo(arrivee.dx - 6.5, arrivee.dy, arrivee.dx - 8, arrivee.dy + 5.5)
+        ..quadraticBezierTo(
+            arrivee.dx - 6.5, arrivee.dy, arrivee.dx - 8, arrivee.dy + 5.5)
         ..close();
       canvas.drawPath(
           pointe,
@@ -419,38 +477,4 @@ class _Connexions extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _Connexions old) => true;
-}
-
-/// Fond à points discrets, aligné sur le zoom et le déplacement du canevas.
-class _GrillePoints extends CustomPainter {
-  _GrillePoints(this.matrice);
-  final Matrix4 matrice;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final echelle = matrice.getMaxScaleOnAxis();
-    var pas = 24.0 * echelle;
-    while (pas < 12) {
-      pas *= 2; // dézoom important : on espace les points au lieu de les entasser
-    }
-    final tr = matrice.getTranslation();
-    final points = <Offset>[];
-    for (var x = tr.x % pas; x < size.width; x += pas) {
-      for (var y = tr.y % pas; y < size.height; y += pas) {
-        points.add(Offset(x, y));
-      }
-    }
-    canvas.drawPoints(
-      PointMode.points,
-      points,
-      Paint()
-        ..isAntiAlias = true
-        ..color = PaletteN8n.points
-        ..strokeWidth = (2.4 * echelle).clamp(1.6, 3.2)
-        ..strokeCap = StrokeCap.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _GrillePoints old) => old.matrice != matrice;
 }
