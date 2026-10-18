@@ -37,29 +37,42 @@ void main() {
     await _police('MaterialIcons',
         r'C:\hub-agents\outils-dev\flutter\bin\cache\artifacts\material_fonts\MaterialIcons-Regular.otf');
 
-    tester.view.physicalSize = const Size(2000, 1500);
+    tester.view.physicalSize = const Size(3200, 2200);
     tester.view.devicePixelRatio = 2;
     final sessions = [
       _s('o', 'ORCH diag-auto', 'OpenCode', 'abliterated-model-large-v2', 'ACTIVE'),
-      _s('a', 'Lane FIAB : étiquetage', 'Claude Code', 'claude-opus-5-5', 'ACTIVE'),
-      _s('b', 'Lane TRAD : codes défaut FR', 'Claude Code', 'claude-sonnet-5-5', 'AWAITING_INPUT'),
-      _s('c', 'Lane DOC : documentation', 'Claude Code', 'claude-haiku-5-5', 'COMPLETED'),
-      _s('d', 'Lane VF2 : port test', 'OpenCode', 'abliterated-model-large-v2', 'ACTIVE'),
-      _s('e', 'Lane W2 : ABS/ESP', 'OpenCode', 'abliterated-model-large-v2', 'COMPLETED'),
-      _s('f', 'Lane CLI2 : option --dtc', 'Claude Code', 'claude-sonnet-5-5', 'COMPLETED'),
-      _s('d1', 'VF2 : capture VCDS', 'OpenCode', 'abliterated-model-large-v2', 'ACTIVE'),
-      _s('d2', 'VF2 : décodage trames', 'Claude Code', 'claude-haiku-5-5', 'AWAITING_INPUT'),
-      _s('x', 'Repérage données Diagbox', 'OpenCode', 'abliterated-model-large-v2', 'PAUSED'),
+      _s('p', 'Lane POURQUOI : objectifs', 'OpenCode', 'abliterated-model-large-v2', 'ACTIVE'),
+      _s('p1', 'Motivations', 'Claude Code', 'claude-haiku-5-5', 'COMPLETED'),
+      _s('p2', 'Causes', 'Claude Code', 'claude-haiku-5-5', 'ACTIVE'),
+      _s('p3', 'Objectifs', 'Claude Code', 'claude-haiku-5-5', 'COMPLETED'),
+      _s('c', 'Lane COMMENT : méthode', 'Claude Code', 'claude-sonnet-5-5', 'AWAITING_INPUT'),
+      _s('c1', 'Conditions', 'OpenCode', 'abliterated-model-large-v2', 'COMPLETED'),
+      _s('c2', 'Procédures', 'OpenCode', 'abliterated-model-large-v2', 'AWAITING_INPUT'),
+      _s('c3', 'Moyens', 'OpenCode', 'abliterated-model-large-v2', 'COMPLETED'),
+      _s('c4', 'Circonstances', 'OpenCode', 'abliterated-model-large-v2', 'COMPLETED'),
+      _s('qui', 'Lane QUI : acteurs', 'Claude Code', 'claude-opus-5-5', 'COMPLETED'),
+      _s('qd', 'Lane QUAND : planning', 'OpenCode', 'abliterated-model-large-v2', 'ACTIVE'),
+      _s('qd1', 'Période', 'Claude Code', 'claude-haiku-5-5', 'ACTIVE'),
+      _s('qd2', 'Date', 'Claude Code', 'claude-haiku-5-5', 'COMPLETED'),
+      _s('qd3', 'Durée', 'Claude Code', 'claude-haiku-5-5', 'COMPLETED'),
+      _s('cb', 'Lane COMBIEN : budget', 'Claude Code', 'claude-sonnet-5-5', 'COMPLETED'),
+      _s('cb1', 'Mesures', 'OpenCode', 'abliterated-model-large-v2', 'COMPLETED'),
+      _s('cb2', 'Coût', 'OpenCode', 'abliterated-model-large-v2', 'COMPLETED'),
+      _s('cb3', 'Quantité', 'OpenCode', 'abliterated-model-large-v2', 'COMPLETED'),
+      _s('ou', 'Lane OÙ : lieux', 'OpenCode', 'abliterated-model-large-v2', 'COMPLETED'),
+      _s('ou1', 'Destination', 'Claude Code', 'claude-haiku-5-5', 'COMPLETED'),
+      _s('ou2', 'Lieu', 'Claude Code', 'claude-haiku-5-5', 'COMPLETED'),
+      _s('ou3', 'Origine', 'Claude Code', 'claude-haiku-5-5', 'COMPLETED'),
+      _s('quoi', 'Lane QUOI : périmètre', 'Claude Code', 'claude-sonnet-5-5', 'ACTIVE'),
     ];
     final graphe = GrapheProjet(sessions, const [
-      LienAgent('o', 'a'),
-      LienAgent('o', 'b'),
-      LienAgent('o', 'c'),
-      LienAgent('o', 'd'),
-      LienAgent('o', 'e'),
-      LienAgent('o', 'f'),
-      LienAgent('d', 'd1'),
-      LienAgent('d', 'd2'),
+      LienAgent('o', 'p'), LienAgent('o', 'c'), LienAgent('o', 'qui'), LienAgent('o', 'qd'),
+      LienAgent('o', 'cb'), LienAgent('o', 'ou'), LienAgent('o', 'quoi'),
+      LienAgent('p', 'p1'), LienAgent('p', 'p2'), LienAgent('p', 'p3'),
+      LienAgent('c', 'c1'), LienAgent('c', 'c2'), LienAgent('c', 'c3'), LienAgent('c', 'c4'),
+      LienAgent('qd', 'qd1'), LienAgent('qd', 'qd2'), LienAgent('qd', 'qd3'),
+      LienAgent('cb', 'cb1'), LienAgent('cb', 'cb2'), LienAgent('cb', 'cb3'),
+      LienAgent('ou', 'ou1'), LienAgent('ou', 'ou2'), LienAgent('ou', 'ou3'),
     ], 'hub.json');
     final cle = GlobalKey();
     await tester.pumpWidget(MaterialApp(

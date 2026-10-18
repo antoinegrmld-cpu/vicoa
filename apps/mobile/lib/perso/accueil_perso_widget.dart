@@ -106,8 +106,8 @@ class _AccueilPersoWidgetState extends State<AccueilPersoWidget> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Création impossible : $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Création impossible : $e')));
       }
     } finally {
       controleur.dispose();

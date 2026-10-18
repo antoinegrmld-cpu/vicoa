@@ -3,6 +3,8 @@
 // flux de gauche à droite, poignées, courbes lissées animées quand l'agent travaille,
 // commandes zoom + / zoom − / tout afficher.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'detail_agent_sheet.dart';
@@ -131,8 +133,8 @@ class _CanevasAgentsState extends State<CanevasAgents>
                     height: DispositionGraphe.hauteurNoeud,
                     child: _NoeudN8n(
                       session: widget.session(s['id'].toString()),
-                      entree: _cote(g, d, s['id'].toString(), gauche: true),
-                      sortie: _cote(g, d, s['id'].toString(), gauche: false),
+                      entree: false,
+                      sortie: false,
                     ),
                   ),
             ]),
@@ -189,21 +191,6 @@ class _BoutonCommande extends StatelessWidget {
         icon: Icon(icone, color: PaletteN8n.texte, size: 22),
         splashRadius: 22,
       );
-}
-
-/// Un lien touche-t-il ce nœud par son côté gauche (gauche: true) ou droit ? (pour afficher la poignée)
-bool _cote(GrapheProjet g, DispositionGraphe d, String id,
-    {required bool gauche}) {
-  final moi = d.positions[id];
-  if (moi == null) return false;
-  for (final l in g.liens) {
-    final autre = l.de == id
-        ? d.positions[l.vers]
-        : (l.vers == id ? d.positions[l.de] : null);
-    if (autre == null) continue;
-    if (gauche ? autre.x < moi.x : autre.x > moi.x) return true;
-  }
-  return false;
 }
 
 /// Couleur et icône de l'agent (comme les icônes de nœuds n8n).
@@ -423,28 +410,37 @@ class _Connexions extends CustomPainter {
   final double phase;
   final bool Function(String id) actif;
 
+  /// Polyligne à angles droits, coins arrondis (comme les accolades d'une mindmap).
+  static Path _arrondi(List<Offset> pts, double rayon) {
+    final p = Path()..moveTo(pts.first.dx, pts.first.dy);
+    for (var i = 1; i < pts.length - 1; i++) {
+      final avant = pts[i] - pts[i - 1], apres = pts[i + 1] - pts[i];
+      final r = math.min(rayon, math.min(avant.distance, apres.distance) / 2);
+      if (r < 0.5 || avant.distance == 0 || apres.distance == 0) {
+        p.lineTo(pts[i].dx, pts[i].dy);
+        continue;
+      }
+      final e = pts[i] - avant / avant.distance * r,
+          s = pts[i] + apres / apres.distance * r;
+      p
+        ..lineTo(e.dx, e.dy)
+        ..quadraticBezierTo(pts[i].dx, pts[i].dy, s.dx, s.dy);
+    }
+    p.lineTo(pts.last.dx, pts.last.dy);
+    return p;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
-    const w = DispositionGraphe.largeurNoeud,
-        h = DispositionGraphe.hauteurNoeud;
     for (final l in liens) {
-      final a = dispo.positions[l.de], b = dispo.positions[l.vers];
-      if (a == null || b == null) continue;
-      // Branche de droite : du bord droit du parent au bord gauche de l'enfant ; de gauche : l'inverse.
-      final versDroite = b.x >= a.x;
-      final sens = versDroite ? 1.0 : -1.0;
-      final depart = Offset(versDroite ? a.x + w + 7 : a.x - 7, a.y + h / 2);
-      final arrivee = Offset(versDroite ? b.x - 9 : b.x + w + 9, b.y + h / 2);
-      final tension = ((arrivee.dx - depart.dx).abs() * 0.5).clamp(40.0, 180.0);
-      final chemin = Path()
-        ..moveTo(depart.dx, depart.dy)
-        ..cubicTo(depart.dx + sens * tension, depart.dy,
-            arrivee.dx - sens * tension, arrivee.dy, arrivee.dx, arrivee.dy);
+      final pts = dispo.traces['${l.de}>${l.vers}'];
+      if (pts == null || pts.length < 2) continue;
+      final chemin = _arrondi(pts, 14);
       final enCours = actif(l.vers);
       final couleur = enCours ? PaletteN8n.vert : PaletteN8n.lien;
 
       if (enCours) {
-        // Halo doux sous la courbe.
+        // Halo doux sous la liaison.
         canvas.drawPath(
           chemin,
           Paint()
@@ -452,6 +448,7 @@ class _Connexions extends CustomPainter {
             ..style = PaintingStyle.stroke
             ..strokeWidth = 7
             ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
             ..color = PaletteN8n.vert.withValues(alpha: 0.18)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
         );
@@ -467,7 +464,7 @@ class _Connexions extends CustomPainter {
           ..color = couleur,
       );
       if (enCours) {
-        // Points lumineux qui avancent le long de la courbe (sens du flux).
+        // Points lumineux qui avancent dans le sens du flux (orchestrateur -> lane).
         final point = Paint()
           ..isAntiAlias = true
           ..color = const Color(0xFFCFFFE8);
@@ -481,19 +478,19 @@ class _Connexions extends CustomPainter {
           }
         }
       }
-      // Pointe de flèche aux angles arrondis.
-      final pointe = Path()
-        ..moveTo(arrivee.dx + sens * 2, arrivee.dy)
-        ..lineTo(arrivee.dx - sens * 8, arrivee.dy - 5.5)
-        ..quadraticBezierTo(arrivee.dx - sens * 6.5, arrivee.dy,
-            arrivee.dx - sens * 8, arrivee.dy + 5.5)
-        ..close();
-      canvas.drawPath(
-          pointe,
-          Paint()
-            ..isAntiAlias = true
-            ..color = couleur
-            ..style = PaintingStyle.fill);
+      // Points de connexion aux deux bouts (poignées), comme sur les nœuds n8n.
+      final fond = Paint()
+        ..isAntiAlias = true
+        ..color = PaletteN8n.fond;
+      final bordPoignee = Paint()
+        ..isAntiAlias = true
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = couleur;
+      for (final c in [pts.first, pts.last]) {
+        canvas.drawCircle(c, 5.5, fond);
+        canvas.drawCircle(c, 5.5, bordPoignee);
+      }
     }
   }
 

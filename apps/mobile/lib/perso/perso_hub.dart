@@ -13,6 +13,8 @@
 //     chaque lane lancée par l'orchestrateur apparaît (même hors de Vicoa) et est reliée au nœud orchestrateur.
 
 import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:ui' show Offset, Rect, Size;
 
 import '/custom_code/actions/index.dart' as actions;
 import 'perso_store.dart';
@@ -239,17 +241,17 @@ GrapheProjet _ajouterLanes(GrapheProjet base, Map hub) {
   return GrapheProjet(sessions, liens, 'lanes du PC');
 }
 
-/// Disposition en MINDMAP : l'orchestrateur au centre, ses lanes en branches à droite ET à gauche
-/// (réparties pour équilibrer), les sous-lanes plus loin sur la même branche. Plusieurs orchestrateurs :
-/// plusieurs mindmaps empilées. Les sessions sans lien : une rangée en dessous.
+/// Disposition en MINDMAP RADIALE : l'orchestrateur au centre, ses lanes réparties TOUT AUTOUR (haut, droite,
+/// bas, gauche...). Les sous-lanes partent vers l'extérieur de leur lane : en colonne pour une branche de côté,
+/// en rangée pour une branche du haut ou du bas (comme une mindmap « CQQCOQP »). Liaisons à angles droits
+/// arrondis (accolades). Plusieurs orchestrateurs : plusieurs mindmaps côte à côte ; sessions sans lien : en dessous.
 class DispositionGraphe {
   static const double largeurNoeud = 230;
   static const double hauteurNoeud = 80;
-  static const double ecartX = 110; // place pour les courbes
-  static const double ecartY = 26;
+  static const double ecartGroupe = 70; // entre une lane et ses sous-lanes
+  static const double ecartFrere = 22; // entre deux sous-lanes voisines
+  static const double ecartCartes = 160; // entre deux mindmaps
   static const double marge = 60;
-  static const double ecartCartes =
-      90; // entre deux mindmaps, et avant les sessions isolées
   static const int parLigneIsoles = 3;
 
   DispositionGraphe(GrapheProjet g) {
@@ -268,42 +270,40 @@ class DispositionGraphe {
       racines = [g.liens.first.de]; // cas d'une boucle
     }
 
-    const pasY = hauteurNoeud + ecartY, pasX = largeurNoeud + ecartX;
+    const w = largeurNoeud, h = hauteurNoeud;
     final places = <String>{};
-    var yCarte = 0.0; // haut de la mindmap en cours (coordonnées relatives)
-    final relatives = <String, ({double x, double y})>{};
+    final rel = <String,
+        Offset>{}; // coin haut-gauche, relatif au centre de la mindmap en cours
+    final orientations = <String,
+        Offset>{}; // direction de croissance d'une branche (+-1, 0) ou (0, +-1)
+    var decalageX = 0.0;
 
-    // Feuilles d'une branche (pour équilibrer et répartir verticalement).
-    int feuilles(String id, Set<String> vus) {
-      if (!vus.add(id)) return 0;
-      final e = (enfants[id] ?? const <String>[])
-          .where((x) => !vus.contains(x))
-          .toList();
-      if (e.isEmpty) return 1;
-      return e.fold<int>(0, (a, c) => a + feuilles(c, vus)).clamp(1, 1 << 30);
-    }
-
-    // Place une branche ; renvoie le y (centre) du nœud. `cote` = +1 droite, -1 gauche.
-    double placer(String id, int profondeur, int cote, double yHaut) {
-      places.add(id);
-      final e = (enfants[id] ?? const <String>[])
+    // Sous-lanes d'un nœud, vers l'extérieur ; renvoie les rectangles occupés (pour éviter les chevauchements).
+    void placerGroupe(String parent, Offset dir, List<Rect> occupes) {
+      final e = (enfants[parent] ?? const <String>[])
           .where((x) => !places.contains(x))
           .toList();
-      final x = cote * profondeur * pasX;
-      if (e.isEmpty) {
-        relatives[id] = (x: x, y: yHaut);
-        return yHaut;
+      if (e.isEmpty) return;
+      places.addAll(e);
+      final p = rel[parent]!;
+      for (var i = 0; i < e.length; i++) {
+        final Offset coin;
+        if (dir.dx != 0) {
+          // branche de côté : colonne de sous-lanes, centrée sur le parent
+          final total = e.length * h + (e.length - 1) * ecartFrere;
+          coin = Offset(p.dx + dir.dx * (w + ecartGroupe),
+              p.dy + h / 2 - total / 2 + i * (h + ecartFrere));
+        } else {
+          // branche du haut ou du bas : rangée de sous-lanes, centrée sur le parent
+          final total = e.length * w + (e.length - 1) * ecartFrere;
+          coin = Offset(p.dx + w / 2 - total / 2 + i * (w + ecartFrere),
+              p.dy + dir.dy * (h + ecartGroupe));
+        }
+        rel[e[i]] = coin;
+        orientations[e[i]] = dir;
+        occupes.add(coin & const Size(w, h));
+        placerGroupe(e[i], dir, occupes);
       }
-      var y = yHaut;
-      final centres = <double>[];
-      for (final c in e) {
-        final n = feuilles(c, {...places});
-        centres.add(placer(c, profondeur + 1, cote, y));
-        y += n * pasY;
-      }
-      final centre = (centres.first + centres.last) / 2;
-      relatives[id] = (x: x, y: centre);
-      return centre;
     }
 
     for (final r in racines) {
@@ -311,77 +311,154 @@ class DispositionGraphe {
       places.add(r);
       final branches = (enfants[r] ?? const <String>[])
           .where((x) => !places.contains(x))
-          .toList()
-        ..sort((a, b) => feuilles(b, {r}).compareTo(feuilles(a, {r})));
-      // Répartition équilibrée : chaque branche va du côté le moins chargé (droite d'abord).
-      final droite = <String>[], gauche = <String>[];
-      var chargeD = 0, chargeG = 0;
-      for (final b in branches) {
-        final n = feuilles(b, {r});
-        if (chargeD <= chargeG) {
-          droite.add(b);
-          chargeD += n;
-        } else {
-          gauche.add(b);
-          chargeG += n;
+          .toList();
+      places.addAll(branches);
+      final n = branches.length;
+      // Rayons de départ, puis agrandis jusqu'à ce que plus rien ne se chevauche.
+      var rx = (w + 90).toDouble() + n * 22, ry = (h + 110).toDouble() + n * 14;
+      Map<String, Offset> essai = {};
+      for (var tentative = 0; tentative < 60; tentative++) {
+        essai = {r: const Offset(-w / 2, -h / 2)};
+        final occupes = <Rect>[essai[r]! & const Size(w, h)];
+        final sauvePlaces = {...places};
+        rel
+          ..clear()
+          ..addAll(essai);
+        for (var k = 0; k < n; k++) {
+          // de midi (en haut) dans le sens des aiguilles d'une montre
+          final angle = -math.pi / 2 + 2 * math.pi * k / n;
+          final cx = rx * math.cos(angle), cy = ry * math.sin(angle);
+          rel[branches[k]] = Offset(cx - w / 2, cy - h / 2);
+          final dir = math.cos(angle).abs() >= math.sin(angle).abs() * 0.9
+              ? Offset(math.cos(angle) >= 0 ? 1 : -1, 0)
+              : Offset(0, math.sin(angle) >= 0 ? 1 : -1);
+          orientations[branches[k]] = dir;
+          occupes.add(rel[branches[k]]! & const Size(w, h));
+          placerGroupe(branches[k], dir, occupes);
         }
+        var chevauche = false;
+        for (var i = 0; i < occupes.length && !chevauche; i++) {
+          for (var j = i + 1; j < occupes.length; j++) {
+            if (occupes[i]
+                .inflate(ecartFrere / 2)
+                .overlaps(occupes[j].inflate(ecartFrere / 2))) {
+              chevauche = true;
+              break;
+            }
+          }
+        }
+        if (!chevauche) break;
+        // on recommence plus grand
+        places
+          ..clear()
+          ..addAll(sauvePlaces);
+        rx *= 1.12;
+        ry *= 1.12;
       }
-      final hauteurD = chargeD * pasY, hauteurG = chargeG * pasY;
-      final hauteur =
-          [hauteurD, hauteurG, pasY].reduce((a, b) => a > b ? a : b);
-      var y = yCarte + (hauteur - hauteurD) / 2;
-      for (final b in droite) {
-        final n = feuilles(b, {...places});
-        placer(b, 1, 1, y);
-        y += n * pasY;
+      // Recadrage de cette mindmap à droite des précédentes.
+      final cles =
+          rel.keys.where((k) => !positionsBrutes.containsKey(k)).toList();
+      var minX = double.infinity;
+      for (final k in cles) {
+        minX = math.min(minX, rel[k]!.dx);
       }
-      y = yCarte + (hauteur - hauteurG) / 2;
-      for (final b in gauche) {
-        final n = feuilles(b, {...places});
-        placer(b, 1, -1, y);
-        y += n * pasY;
+      for (final k in cles) {
+        positionsBrutes[k] = rel[k]! + Offset(decalageX - minX, 0);
       }
-      relatives[r] = (x: 0, y: yCarte + hauteur / 2 - pasY / 2);
-      yCarte += hauteur + ecartCartes;
+      var maxX = -double.infinity;
+      for (final k in cles) {
+        maxX = math.max(maxX, positionsBrutes[k]!.dx + w);
+      }
+      decalageX = maxX + ecartCartes;
+      if (racines.first == r) {
+        centreBrut = positionsBrutes[r]! + const Offset(w / 2, h / 2);
+      }
     }
 
-    // Sessions sans lien : rangées sous les mindmaps, centrées.
-    final isoles = ids.where((id) => !relatives.containsKey(id)).toList();
+    // Sessions sans lien : rangées sous les mindmaps.
+    var basY = 0.0;
+    for (final p in positionsBrutes.values) {
+      basY = math.max(basY, p.dy + h);
+    }
+    final isoles = ids.where((id) => !positionsBrutes.containsKey(id)).toList();
     for (var i = 0; i < isoles.length; i++) {
-      final col = i % parLigneIsoles, ligne = i ~/ parLigneIsoles;
-      final nbCol =
-          isoles.length < parLigneIsoles ? isoles.length : parLigneIsoles;
-      relatives[isoles[i]] =
-          (x: (col - (nbCol - 1) / 2) * pasX, y: yCarte + ligne * pasY);
+      positionsBrutes[isoles[i]] = Offset(
+          (i % parLigneIsoles) * (w + ecartFrere * 2),
+          basY + ecartCartes / 2 + (i ~/ parLigneIsoles) * (h + ecartFrere));
     }
 
-    // Passage en coordonnées positives (avec marge).
+    // Coordonnées positives avec marge.
     var minX = 0.0, minY = 0.0, maxX = 0.0, maxY = 0.0;
     var premier = true;
-    for (final p in relatives.values) {
+    for (final p in positionsBrutes.values) {
       if (premier) {
-        minX = maxX = p.x;
-        minY = maxY = p.y;
+        minX = maxX = p.dx;
+        minY = maxY = p.dy;
         premier = false;
       }
-      if (p.x < minX) minX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y > maxY) maxY = p.y;
+      minX = math.min(minX, p.dx);
+      minY = math.min(minY, p.dy);
+      maxX = math.max(maxX, p.dx);
+      maxY = math.max(maxY, p.dy);
     }
-    relatives.forEach((id, p) =>
-        positions[id] = (x: p.x - minX + marge, y: p.y - minY + marge));
-    largeur = maxX - minX + largeurNoeud + 2 * marge;
-    hauteur = maxY - minY + hauteurNoeud + 2 * marge;
-    centre = racines.isNotEmpty && positions[racines.first] != null
-        ? (
-            x: positions[racines.first]!.x + largeurNoeud / 2,
-            y: positions[racines.first]!.y + hauteurNoeud / 2
-          )
-        : (x: largeur / 2, y: hauteur / 2);
+    final decal = Offset(marge - minX, marge - minY);
+    positionsBrutes.forEach(
+        (id, p) => positions[id] = (x: p.dx + decal.dx, y: p.dy + decal.dy));
+    largeur = maxX - minX + w + 2 * marge;
+    hauteur = maxY - minY + h + 2 * marge;
+    final c =
+        (centreBrut ?? Offset(largeur / 2 - decal.dx, hauteur / 2 - decal.dy)) +
+            decal;
+    centre = (x: c.dx, y: c.dy);
+
+    // Tracés des liaisons (angles droits) : du nœud parent vers l'enfant, selon l'orientation de l'enfant.
+    for (final l in g.liens) {
+      final a = positions[l.de], b = positions[l.vers];
+      if (a == null || b == null) continue;
+      final ra = Rect.fromLTWH(a.x, a.y, w, h),
+          rb = Rect.fromLTWH(b.x, b.y, w, h);
+      final dir = orientations[l.vers] ??
+          Offset((rb.center.dx >= ra.center.dx) ? 1 : -1, 0);
+      final racine = racines.contains(l.de);
+      final List<Offset> pts;
+      if (dir.dx != 0) {
+        // départ par le côté (étalé sur la hauteur du centre pour la racine), coude à mi-chemin
+        final yA = racine
+            ? (rb.center.dy).clamp(ra.top + 14, ra.bottom - 14).toDouble()
+            : ra.center.dy;
+        final xA = dir.dx > 0 ? ra.right : ra.left;
+        final xB = dir.dx > 0 ? rb.left : rb.right;
+        final xm = (xA + xB) / 2;
+        pts = [
+          Offset(xA, yA),
+          Offset(xm, yA),
+          Offset(xm, rb.center.dy),
+          Offset(xB, rb.center.dy)
+        ];
+      } else {
+        final xA = racine
+            ? (rb.center.dx).clamp(ra.left + 24, ra.right - 24).toDouble()
+            : ra.center.dx;
+        final yA = dir.dy > 0 ? ra.bottom : ra.top;
+        final yB = dir.dy > 0 ? rb.top : rb.bottom;
+        final ym = (yA + yB) / 2;
+        pts = [
+          Offset(xA, yA),
+          Offset(xA, ym),
+          Offset(rb.center.dx, ym),
+          Offset(rb.center.dx, yB)
+        ];
+      }
+      traces['${l.de}>${l.vers}'] = pts;
+    }
   }
 
+  final Map<String, Offset> positionsBrutes = {};
+  Offset? centreBrut;
   final Map<String, ({double x, double y})> positions = {};
+
+  /// Points des liaisons, par « parent>enfant » (polyligne à angles droits, arrondie au dessin).
+  final Map<String, List<Offset>> traces = {};
   late final double largeur;
   late final double hauteur;
 
