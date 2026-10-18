@@ -34,3 +34,7 @@ export '/profile/voice_language/voice_language_widget.dart'
 export '/profile/app_language/app_language_widget.dart'
     show AppLanguageWidget;
 export '/pages/web_preview/web_preview_widget.dart' show WebPreviewWidget;
+// Vicoa Perso
+export '/perso/accueil_perso_widget.dart' show AccueilPersoWidget;
+export '/perso/projet_perso_widget.dart' show ProjetPersoWidget;
+export '/perso/import_perso_widget.dart' show ImportPersoWidget;

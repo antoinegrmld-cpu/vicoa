@@ -65,6 +65,37 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:780704364741:android:90a470179ff68ca056d8ac",
+        "android_client_info": {
+          "package_name": "app.vicoa.perso"
+        }
+      },
+      "api_key": [
+        {
+          "current_key": "AIzaSyAsZ0dXnzXz4pwLGz71GU1_Cqv06XlFWa0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "780704364741-evit6ouabplm9nrne6t2e33v2uhf2hah.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "780704364741-tircrntvs9720p2m07mnk6ved37ptql7.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "app.vicoa",
+                "app_store_id": "6751626168"
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

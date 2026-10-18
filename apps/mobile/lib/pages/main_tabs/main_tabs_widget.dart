@@ -5,6 +5,7 @@ import '/components/floating_tab_bar.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/l10n/app_localizations.dart';
 import '/pages/automations/automations_widget.dart';
+import '/perso/accueil_perso_widget.dart';
 import '/pages/home/home_widget.dart';
 import '/pages/tasks/tasks_widget.dart';
 import 'main_tabs_controller.dart';
@@ -15,7 +16,8 @@ import 'main_tabs_controller.dart';
 /// streams when switching. Profile now lives in the Home header (top-left), not
 /// as a tab.
 class MainTabsWidget extends StatefulWidget {
-  const MainTabsWidget({super.key, this.initialTab = 0});
+  // Vicoa Perso : par défaut, l'onglet « Projets » (index 3) ; les index 0-2 d'origine sont inchangés.
+  const MainTabsWidget({super.key, this.initialTab = 3});
 
   final int initialTab;
 
@@ -27,7 +29,10 @@ class MainTabsWidget extends StatefulWidget {
 }
 
 class _MainTabsWidgetState extends State<MainTabsWidget> {
-  late int _index = widget.initialTab.clamp(0, 2);
+  late int _index = widget.initialTab.clamp(0, 3);
+
+  /// Ordre d'affichage des onglets : Projets (Perso) d'abord, puis ceux d'origine.
+  static const List<int> _ordre = [3, 0, 1, 2];
   final Set<int> _built = {};
 
   @override
@@ -47,7 +52,7 @@ class _MainTabsWidgetState extends State<MainTabsWidget> {
   /// build-on-first-visit behavior intact.
   void _onTabRequested() {
     final requested = MainTabsController.instance.requestedTab.value;
-    if (!mounted || requested < 0 || requested > 2 || requested == _index) {
+    if (!mounted || requested < 0 || requested > 3 || requested == _index) {
       return;
     }
     setState(() {
@@ -63,6 +68,8 @@ class _MainTabsWidgetState extends State<MainTabsWidget> {
         return const HomeWidget();
       case 1:
         return const TasksWidget();
+      case 3:
+        return const AccueilPersoWidget();
       default:
         return const AutomationsWidget();
     }
@@ -80,14 +87,19 @@ class _MainTabsWidgetState extends State<MainTabsWidget> {
         children: [
           IndexedStack(
             index: _index,
-            children: [for (var i = 0; i < 3; i++) _tab(i)],
+            children: [for (var i = 0; i < 4; i++) _tab(i)],
           ),
           Align(
             alignment: Alignment.bottomCenter,
             child: FloatingTabBar(
-              currentIndex: _index,
-              onTap: (i) => setState(() => _index = i),
+              currentIndex: _ordre.indexOf(_index),
+              onTap: (i) => setState(() => _index = _ordre[i]),
               items: [
+                FloatingTabItem(
+                  icon: Icons.dashboard_outlined,
+                  selectedIcon: Icons.dashboard_rounded,
+                  label: 'Projets',
+                ),
                 FloatingTabItem(
                   icon: FontAwesomeIcons.comment,
                   selectedIcon: FontAwesomeIcons.comment,

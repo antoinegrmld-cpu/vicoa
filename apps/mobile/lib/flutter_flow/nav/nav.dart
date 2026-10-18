@@ -156,6 +156,19 @@ GoRouter createRouter(AppStateNotifier appStateNotifier) => GoRouter(
           path: ProfileWidget.routePath,
           builder: (context, params) => ProfileWidget(),
         ),
+        // Vicoa Perso
+        FFRoute(
+          name: ProjetPersoWidget.routeName,
+          path: ProjetPersoWidget.routePath,
+          builder: (context, params) => ProjetPersoWidget(
+            cle: params.getParam('cle', ParamType.String) ?? '',
+          ),
+        ),
+        FFRoute(
+          name: ImportPersoWidget.routeName,
+          path: ImportPersoWidget.routePath,
+          builder: (context, params) => ImportPersoWidget(),
+        ),
         FFRoute(
           name: MachinesWidget.routeName,
           path: MachinesWidget.routePath,
