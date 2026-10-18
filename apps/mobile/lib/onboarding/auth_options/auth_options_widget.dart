@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '/actions/actions.dart' as action_blocks;
 import '/auth/supabase_auth/auth_util.dart';
 import '/backend/schema/structs/index.dart';
@@ -318,7 +319,7 @@ class _AuthOptionsWidgetState extends State<AuthOptionsWidget> with RouteAware {
                             ),
                           ),
                         ),
-                        if (!Platform.isAndroid)
+                        if (!kIsWeb && !Platform.isAndroid)
                           Padding(
                             padding: EdgeInsetsDirectional.fromSTEB(0.0, 0.0, 0.0, 24.0),
                             child: FFButtonWidget(

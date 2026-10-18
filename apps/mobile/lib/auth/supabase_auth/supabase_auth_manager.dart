@@ -329,7 +329,9 @@ class SupabaseAuthManager extends AuthManager
       // Platform-specific redirect URL
       // iOS: vicoa://login-callback (scheme only)
       // Android: vicoa://vicoa.app/login-callback (requires host as per AndroidManifest.xml)
-      final redirectTo = Platform.isIOS
+      final redirectTo = kIsWeb
+          ? '${Uri.base.origin}/' // Vicoa Perso PC : retour vers la fenêtre de l'appli
+          : Platform.isIOS
           ? 'vicoa://login-callback'
           : 'vicoa://vicoa.app/login-callback';
 
@@ -352,7 +354,8 @@ class SupabaseAuthManager extends AuthManager
       await SupaFlow.client.auth.signInWithOAuth(
         provider,
         redirectTo: redirectTo,
-        authScreenLaunchMode: LaunchMode.externalApplication,
+        authScreenLaunchMode:
+            kIsWeb ? LaunchMode.platformDefault : LaunchMode.externalApplication,
       );
 
       final user = await authCompleter.future.timeout(

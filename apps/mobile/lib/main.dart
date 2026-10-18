@@ -34,7 +34,7 @@ void main() async {
   await initPostHog();
 
   // Start initial custom actions code
-  await actions.initSuperWall();
+  if (!kIsWeb) await actions.initSuperWall(); // Vicoa Perso PC : pas de Superwall sur le web
   
   // Initialize RevenueCat. On Android, Superwall is the only SDK that ever
   // launches a purchase (see vicoa_superwall_delegate.dart) — RevenueCat must

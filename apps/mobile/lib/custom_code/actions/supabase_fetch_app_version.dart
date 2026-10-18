@@ -1,4 +1,5 @@
 // Automatic FlutterFlow imports
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '/backend/schema/structs/index.dart';
 import '/backend/supabase/supabase.dart';
 import '/actions/actions.dart' as action_blocks;
@@ -17,6 +18,7 @@ Future<String?> supabaseFetchAppVersion() async {
 
   // Determine platform
   String platform;
+  if (kIsWeb) return null; // Vicoa Perso PC
   if (Platform.isIOS) {
     platform = 'ios';
   } else if (Platform.isAndroid) {

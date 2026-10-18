@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:posthog_flutter/posthog_flutter.dart';
 
 const _kPostHogToken = 'phc_zgd6NcDfsBcGhRZrJKBJfNeuP8ZL9MRTygqHscJ6xL4H';
 const _kPostHogHost = 'https://us.i.posthog.com';
 
 Future<void> initPostHog() async {
+  if (kIsWeb) return; // Vicoa Perso PC
   final config = PostHogConfig(_kPostHogToken);
   config.host = _kPostHogHost;
   config.debug = false;
@@ -18,6 +20,7 @@ Future<void> posthogCapture(
   String eventName, {
   Map<String, Object>? properties,
 }) async {
+  if (kIsWeb) return;
   await Posthog().capture(eventName: eventName, properties: properties);
 }
 
@@ -26,6 +29,7 @@ Future<void> posthogIdentify({
   Map<String, Object>? userProperties,
   Map<String, Object>? userPropertiesSetOnce,
 }) async {
+  if (kIsWeb) return;
   await Posthog().identify(
     userId: userId,
     userProperties: userProperties,
@@ -34,9 +38,11 @@ Future<void> posthogIdentify({
 }
 
 Future<void> posthogScreen(String screenName) async {
+  if (kIsWeb) return;
   await Posthog().screen(screenName: screenName);
 }
 
 Future<void> posthogReset() async {
+  if (kIsWeb) return;
   await Posthog().reset();
 }

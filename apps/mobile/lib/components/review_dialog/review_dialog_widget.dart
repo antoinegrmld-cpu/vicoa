@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -56,8 +57,8 @@ class _ReviewDialogWidgetState extends State<ReviewDialogWidget> {
     setState(() => _isSubmittingFeedback = true);
 
     final appVersion = FFAppState().appVersion;
-    final platform = Platform.operatingSystem;
-    final osVersion = Platform.operatingSystemVersion;
+    final platform = kIsWeb ? 'web' : Platform.operatingSystem;
+    final osVersion = kIsWeb ? 'navigateur' : Platform.operatingSystemVersion;
     final userEmail = FFAppState().user.email;
     final fullMessage =
         '$message\n\n---\nSource: review_dialog\nUser: $userEmail\nApp Version: $appVersion\nPlatform: $platform\nOS: $osVersion';

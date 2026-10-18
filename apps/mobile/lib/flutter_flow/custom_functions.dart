@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -447,8 +448,8 @@ String getErrorTitle(ErrorType errorType) {
 
 /// Construct the feedback email body with device and app information
 String buildFeedbackEmailBody() {
-  final platform = Platform.operatingSystem;
-  final platformVersion = Platform.operatingSystemVersion;
+  final platform = kIsWeb ? 'web' : Platform.operatingSystem;
+  final platformVersion = kIsWeb ? 'navigateur' : Platform.operatingSystemVersion;
   final appVersion = FFAppState().appVersion;
 
   return 'Hi,\nI ... \n\n\n\n---\nApp Version: $appVersion\nPlatform: $platform\nOS: $platformVersion';

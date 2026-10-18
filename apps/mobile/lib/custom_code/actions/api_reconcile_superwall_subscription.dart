@@ -1,4 +1,5 @@
 // Automatic FlutterFlow imports
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '/backend/schema/structs/index.dart';
 import '/backend/supabase/supabase.dart';
 import '/actions/actions.dart' as action_blocks;
@@ -29,6 +30,7 @@ import 'dart:io' show Platform;
 /// Failures are swallowed: this is a best-effort backfill, not a blocker.
 Future<void> apiReconcileSuperwallSubscription() async {
   String? platform;
+  if (kIsWeb) return; // Vicoa Perso PC
   if (Platform.isIOS) {
     platform = 'ios';
   } else if (Platform.isAndroid) {
