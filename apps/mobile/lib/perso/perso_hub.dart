@@ -131,18 +131,58 @@ Future<GrapheProjet> construireGraphe(ProjetPerso projet) async {
     if (projet.dossier != null) _nomDossier(projet.dossier!),
     projet.nom,
   };
+  var graphe = base;
   for (final nom in noms) {
     try {
       final texte =
           await lireFichierPc(machine, kDossierImportPc, 'hubs/$nom.json');
       if (texte == null) continue;
       final hub = jsonDecode(texte);
-      if (hub is Map) return _ajouterLanes(base, hub);
+      if (hub is Map) {
+        graphe = _ajouterLanes(base, hub);
+        break;
+      }
     } catch (_) {
       // PC injoignable : on garde le graphe de base
     }
   }
-  return base;
+  return _appliquerLiensAgents(graphe, machine);
+}
+
+/// Liens posés par les agents eux-mêmes (outil « vicoa » du hub : vicoa_lancer_lane, vicoa_relier)
+/// et lanes qu'ils ont retirées (vicoa_supprimer) : C:\hub-agents\vicoa-import\liens.json.
+Future<GrapheProjet> _appliquerLiensAgents(
+    GrapheProjet g, String machine) async {
+  try {
+    final texte = await lireFichierPc(machine, kDossierImportPc, 'liens.json');
+    if (texte == null) return g;
+    final d = jsonDecode(texte);
+    if (d is! Map) return g;
+    final masques = {
+      ...(d['masques'] as List? ?? const []).map((x) => x.toString())
+    };
+    final sessions =
+        g.sessions.where((s) => !masques.contains(s['id'].toString())).toList();
+    final ids = {for (final s in sessions) s['id'].toString()};
+    final liens = g.liens
+        .where((l) => ids.contains(l.de) && ids.contains(l.vers))
+        .toList();
+    for (final l in (d['liens'] as List? ?? const []).whereType<Map>()) {
+      final de = l['de']?.toString(), vers = l['vers']?.toString();
+      if (de == null ||
+          vers == null ||
+          !ids.contains(de) ||
+          !ids.contains(vers)) {
+        continue;
+      }
+      // Un lien explicite remplace le lien « automatique » vers la même lane.
+      liens.removeWhere((x) => x.vers == vers);
+      liens.add(LienAgent(de, vers));
+    }
+    return GrapheProjet(sessions, liens, g.source);
+  } catch (_) {
+    return g;
+  }
 }
 
 /// Nœud pour une session qui tourne sur le PC mais n'est pas (encore) dans Vicoa.
