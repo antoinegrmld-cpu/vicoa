@@ -330,7 +330,9 @@ class SupabaseAuthManager extends AuthManager
       // iOS: vicoa://login-callback (scheme only)
       // Android: vicoa://vicoa.app/login-callback (requires host as per AndroidManifest.xml)
       final redirectTo = kIsWeb
-          ? '${Uri.base.origin}/' // Vicoa Perso PC : retour vers la fenêtre de l'appli
+          // Vicoa Perso PC : même adresse de retour que l'appli web officielle (autorisée par Vicoa) ;
+          // le petit serveur du PC la renvoie vers l'appli avec le code de connexion.
+          ? '${Uri.base.origin}/api/auth/callback'
           : Platform.isIOS
           ? 'vicoa://login-callback'
           : 'vicoa://vicoa.app/login-callback';
