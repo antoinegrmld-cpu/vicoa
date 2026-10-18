@@ -8,6 +8,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '/custom_code/actions/index.dart' as actions;
+import '/actions/actions.dart' as local_actions;
+import '/app_state.dart';
+import '/profile/no_credit_sheet/no_credit_sheet_widget.dart';
 import '/custom_code/widgets/tool_use_group.dart'
     show isToolUseContent, summarizeToolMessage;
 import '/index.dart' show AgentChatWidget;
@@ -118,10 +121,37 @@ class _DetailAgentState extends State<_DetailAgent> {
   Future<void> _envoyer() async {
     final texte = saisie.text.trim();
     if (texte.isEmpty || envoi) return;
+    // Même règle que l'écran de conversation d'origine : sans abonnement Vicoa, un message = 1 crédit
+    // (fenêtre « plus de crédits » s'il n'en reste pas), remboursé si l'envoi échoue.
+    var facture = false;
+    if (!await actions.hasActiveSubscription()) {
+      if (FFAppState().credit.balance < 1) {
+        if (mounted) {
+          await showModalBottomSheet(
+            context: context,
+            backgroundColor: Colors.transparent,
+            enableDrag: false,
+            builder: (_) => const NoCreditSheetWidget(
+                paywall: 'agent_chat', creditsNeeded: 1),
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
+      await local_actions.useCredit(context,
+          usedCredit: 1, name: 'Agent Chat Message');
+      facture = true;
+    }
+    if (!mounted) return;
     setState(() => envoi = true);
     final r = await actions.apiChatWithAgent(widget.sessionId, texte);
     if (!mounted) return;
     setState(() => envoi = false);
+    if (r == null && facture) {
+      await local_actions.grantCredit(context,
+          creditGranted: 1, name: 'Refund: Failed Agent Chat Message');
+      if (!mounted) return;
+    }
     if (r == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text("Envoi impossible. L'agent est-il joignable ?")));

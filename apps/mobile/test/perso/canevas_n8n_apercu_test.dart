@@ -37,19 +37,29 @@ void main() {
     await _police('MaterialIcons',
         r'C:\hub-agents\outils-dev\flutter\bin\cache\artifacts\material_fonts\MaterialIcons-Regular.otf');
 
-    tester.view.physicalSize = const Size(1080, 1500);
-    tester.view.devicePixelRatio = 2.5;
+    tester.view.physicalSize = const Size(2000, 1500);
+    tester.view.devicePixelRatio = 2;
     final sessions = [
       _s('o', 'ORCH diag-auto', 'OpenCode', 'abliterated-model-large-v2', 'ACTIVE'),
       _s('a', 'Lane FIAB : étiquetage', 'Claude Code', 'claude-opus-5-5', 'ACTIVE'),
       _s('b', 'Lane TRAD : codes défaut FR', 'Claude Code', 'claude-sonnet-5-5', 'AWAITING_INPUT'),
       _s('c', 'Lane DOC : documentation', 'Claude Code', 'claude-haiku-5-5', 'COMPLETED'),
-      _s('d', 'Repérage données Diagbox', 'OpenCode', 'abliterated-model-large-v2', 'PAUSED'),
+      _s('d', 'Lane VF2 : port test', 'OpenCode', 'abliterated-model-large-v2', 'ACTIVE'),
+      _s('e', 'Lane W2 : ABS/ESP', 'OpenCode', 'abliterated-model-large-v2', 'COMPLETED'),
+      _s('f', 'Lane CLI2 : option --dtc', 'Claude Code', 'claude-sonnet-5-5', 'COMPLETED'),
+      _s('d1', 'VF2 : capture VCDS', 'OpenCode', 'abliterated-model-large-v2', 'ACTIVE'),
+      _s('d2', 'VF2 : décodage trames', 'Claude Code', 'claude-haiku-5-5', 'AWAITING_INPUT'),
+      _s('x', 'Repérage données Diagbox', 'OpenCode', 'abliterated-model-large-v2', 'PAUSED'),
     ];
     final graphe = GrapheProjet(sessions, const [
       LienAgent('o', 'a'),
       LienAgent('o', 'b'),
       LienAgent('o', 'c'),
+      LienAgent('o', 'd'),
+      LienAgent('o', 'e'),
+      LienAgent('o', 'f'),
+      LienAgent('d', 'd1'),
+      LienAgent('d', 'd2'),
     ], 'hub.json');
     final cle = GlobalKey();
     await tester.pumpWidget(MaterialApp(

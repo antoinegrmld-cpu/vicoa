@@ -239,75 +239,152 @@ GrapheProjet _ajouterLanes(GrapheProjet base, Map hub) {
   return GrapheProjet(sessions, liens, 'lanes du PC');
 }
 
-/// Disposition façon n8n : le flux se lit de gauche à droite.
-/// Colonne 0 = orchestrateurs, colonne 1 = leurs sous-agents, etc.
-/// Les sessions sans lien sont rangées à droite, en colonnes de 6.
+/// Disposition en MINDMAP : l'orchestrateur au centre, ses lanes en branches à droite ET à gauche
+/// (réparties pour équilibrer), les sous-lanes plus loin sur la même branche. Plusieurs orchestrateurs :
+/// plusieurs mindmaps empilées. Les sessions sans lien : une rangée en dessous.
 class DispositionGraphe {
   static const double largeurNoeud = 230;
   static const double hauteurNoeud = 80;
   static const double ecartX = 110; // place pour les courbes
-  static const double ecartY = 34;
+  static const double ecartY = 26;
   static const double marge = 60;
-  static const int parColonneIsoles = 6;
+  static const double ecartCartes =
+      90; // entre deux mindmaps, et avant les sessions isolées
+  static const int parLigneIsoles = 3;
 
   DispositionGraphe(GrapheProjet g) {
     final ids = [for (final s in g.sessions) s['id'].toString()];
     final enfants = <String, List<String>>{};
     final aUnParent = <String>{};
     for (final l in g.liens) {
+      if (l.de == l.vers) continue;
       enfants.putIfAbsent(l.de, () => []).add(l.vers);
       aUnParent.add(l.vers);
     }
-    final colonne = <String, int>{};
-    final racines = ids
+    var racines = ids
         .where((id) => !aUnParent.contains(id) && enfants.containsKey(id))
         .toList();
-    final file = <String>[...racines];
-    for (final r in racines) {
-      colonne[r] = 0;
+    if (racines.isEmpty && g.liens.isNotEmpty) {
+      racines = [g.liens.first.de]; // cas d'une boucle
     }
-    while (file.isNotEmpty) {
-      final id = file.removeAt(0);
-      for (final e in enfants[id] ?? const <String>[]) {
-        if (!colonne.containsKey(e)) {
-          colonne[e] = colonne[id]! + 1;
-          file.add(e);
+
+    const pasY = hauteurNoeud + ecartY, pasX = largeurNoeud + ecartX;
+    final places = <String>{};
+    var yCarte = 0.0; // haut de la mindmap en cours (coordonnées relatives)
+    final relatives = <String, ({double x, double y})>{};
+
+    // Feuilles d'une branche (pour équilibrer et répartir verticalement).
+    int feuilles(String id, Set<String> vus) {
+      if (!vus.add(id)) return 0;
+      final e = (enfants[id] ?? const <String>[])
+          .where((x) => !vus.contains(x))
+          .toList();
+      if (e.isEmpty) return 1;
+      return e.fold<int>(0, (a, c) => a + feuilles(c, vus)).clamp(1, 1 << 30);
+    }
+
+    // Place une branche ; renvoie le y (centre) du nœud. `cote` = +1 droite, -1 gauche.
+    double placer(String id, int profondeur, int cote, double yHaut) {
+      places.add(id);
+      final e = (enfants[id] ?? const <String>[])
+          .where((x) => !places.contains(x))
+          .toList();
+      final x = cote * profondeur * pasX;
+      if (e.isEmpty) {
+        relatives[id] = (x: x, y: yHaut);
+        return yHaut;
+      }
+      var y = yHaut;
+      final centres = <double>[];
+      for (final c in e) {
+        final n = feuilles(c, {...places});
+        centres.add(placer(c, profondeur + 1, cote, y));
+        y += n * pasY;
+      }
+      final centre = (centres.first + centres.last) / 2;
+      relatives[id] = (x: x, y: centre);
+      return centre;
+    }
+
+    for (final r in racines) {
+      if (places.contains(r)) continue;
+      places.add(r);
+      final branches = (enfants[r] ?? const <String>[])
+          .where((x) => !places.contains(x))
+          .toList()
+        ..sort((a, b) => feuilles(b, {r}).compareTo(feuilles(a, {r})));
+      // Répartition équilibrée : chaque branche va du côté le moins chargé (droite d'abord).
+      final droite = <String>[], gauche = <String>[];
+      var chargeD = 0, chargeG = 0;
+      for (final b in branches) {
+        final n = feuilles(b, {r});
+        if (chargeD <= chargeG) {
+          droite.add(b);
+          chargeD += n;
+        } else {
+          gauche.add(b);
+          chargeG += n;
         }
       }
-    }
-    // Sessions sans lien : colonnes de 6, à droite du flux.
-    final isoles = ids.where((id) => !colonne.containsKey(id)).toList();
-    final premiereLibre = colonne.isEmpty
-        ? 0
-        : colonne.values.reduce((a, b) => a > b ? a : b) + 1;
-    for (var i = 0; i < isoles.length; i++) {
-      colonne[isoles[i]] = premiereLibre + i ~/ parColonneIsoles;
-    }
-    final parColonne = <int, List<String>>{};
-    for (final id in ids) {
-      parColonne.putIfAbsent(colonne[id]!, () => []).add(id);
-    }
-    final hauteurMax = parColonne.values
-        .map((l) => l.length * (hauteurNoeud + ecartY) - ecartY)
-        .fold<double>(0, (a, b) => a > b ? a : b);
-    for (final entree in parColonne.entries) {
-      final liste = entree.value;
-      final hauteurColonne = liste.length * (hauteurNoeud + ecartY) - ecartY;
-      final y0 = marge + (hauteurMax - hauteurColonne) / 2;
-      for (var i = 0; i < liste.length; i++) {
-        positions[liste[i]] = (
-          x: marge + entree.key * (largeurNoeud + ecartX),
-          y: y0 + i * (hauteurNoeud + ecartY),
-        );
+      final hauteurD = chargeD * pasY, hauteurG = chargeG * pasY;
+      final hauteur =
+          [hauteurD, hauteurG, pasY].reduce((a, b) => a > b ? a : b);
+      var y = yCarte + (hauteur - hauteurD) / 2;
+      for (final b in droite) {
+        final n = feuilles(b, {...places});
+        placer(b, 1, 1, y);
+        y += n * pasY;
       }
+      y = yCarte + (hauteur - hauteurG) / 2;
+      for (final b in gauche) {
+        final n = feuilles(b, {...places});
+        placer(b, 1, -1, y);
+        y += n * pasY;
+      }
+      relatives[r] = (x: 0, y: yCarte + hauteur / 2 - pasY / 2);
+      yCarte += hauteur + ecartCartes;
     }
-    final nbColonnes =
-        parColonne.keys.fold<int>(0, (a, b) => a > b ? a : b) + 1;
-    largeur = marge * 2 + nbColonnes * (largeurNoeud + ecartX) - ecartX;
-    hauteur = marge * 2 + hauteurMax;
+
+    // Sessions sans lien : rangées sous les mindmaps, centrées.
+    final isoles = ids.where((id) => !relatives.containsKey(id)).toList();
+    for (var i = 0; i < isoles.length; i++) {
+      final col = i % parLigneIsoles, ligne = i ~/ parLigneIsoles;
+      final nbCol =
+          isoles.length < parLigneIsoles ? isoles.length : parLigneIsoles;
+      relatives[isoles[i]] =
+          (x: (col - (nbCol - 1) / 2) * pasX, y: yCarte + ligne * pasY);
+    }
+
+    // Passage en coordonnées positives (avec marge).
+    var minX = 0.0, minY = 0.0, maxX = 0.0, maxY = 0.0;
+    var premier = true;
+    for (final p in relatives.values) {
+      if (premier) {
+        minX = maxX = p.x;
+        minY = maxY = p.y;
+        premier = false;
+      }
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    relatives.forEach((id, p) =>
+        positions[id] = (x: p.x - minX + marge, y: p.y - minY + marge));
+    largeur = maxX - minX + largeurNoeud + 2 * marge;
+    hauteur = maxY - minY + hauteurNoeud + 2 * marge;
+    centre = racines.isNotEmpty && positions[racines.first] != null
+        ? (
+            x: positions[racines.first]!.x + largeurNoeud / 2,
+            y: positions[racines.first]!.y + hauteurNoeud / 2
+          )
+        : (x: largeur / 2, y: hauteur / 2);
   }
 
   final Map<String, ({double x, double y})> positions = {};
   late final double largeur;
   late final double hauteur;
+
+  /// Centre du nœud orchestrateur (pour cadrer la vue sur lui).
+  late final ({double x, double y}) centre;
 }

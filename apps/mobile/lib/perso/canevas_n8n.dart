@@ -49,8 +49,12 @@ class _CanevasAgentsState extends State<CanevasAgents>
     final echelle = ideale < echelleMin ? echelleMin : ideale;
     final largeurVue = d.largeur * echelle, hauteurVue = d.hauteur * echelle;
     // Trop large : on cale le début du flux (l'orchestrateur) à gauche ; sinon on centre.
-    final dx = largeurVue > t.width ? 0.0 : (t.width - largeurVue) / 2;
-    final dy = hauteurVue > t.height ? 0.0 : (t.height - hauteurVue) / 2;
+    final dx = largeurVue > t.width
+        ? t.width / 2 - d.centre.x * echelle
+        : (t.width - largeurVue) / 2;
+    final dy = hauteurVue > t.height
+        ? t.height / 2 - d.centre.y * echelle
+        : (t.height - hauteurVue) / 2;
     controle.value = Matrix4.identity()
       ..translateByDouble(dx, dy, 0, 1)
       ..scaleByDouble(echelle, echelle, 1, 1);
@@ -127,8 +131,8 @@ class _CanevasAgentsState extends State<CanevasAgents>
                     height: DispositionGraphe.hauteurNoeud,
                     child: _NoeudN8n(
                       session: widget.session(s['id'].toString()),
-                      entree: g.liens.any((l) => l.vers == s['id'].toString()),
-                      sortie: g.liens.any((l) => l.de == s['id'].toString()),
+                      entree: _cote(g, d, s['id'].toString(), gauche: true),
+                      sortie: _cote(g, d, s['id'].toString(), gauche: false),
                     ),
                   ),
             ]),
@@ -185,6 +189,21 @@ class _BoutonCommande extends StatelessWidget {
         icon: Icon(icone, color: PaletteN8n.texte, size: 22),
         splashRadius: 22,
       );
+}
+
+/// Un lien touche-t-il ce nœud par son côté gauche (gauche: true) ou droit ? (pour afficher la poignée)
+bool _cote(GrapheProjet g, DispositionGraphe d, String id,
+    {required bool gauche}) {
+  final moi = d.positions[id];
+  if (moi == null) return false;
+  for (final l in g.liens) {
+    final autre = l.de == id
+        ? d.positions[l.vers]
+        : (l.vers == id ? d.positions[l.de] : null);
+    if (autre == null) continue;
+    if (gauche ? autre.x < moi.x : autre.x > moi.x) return true;
+  }
+  return false;
 }
 
 /// Couleur et icône de l'agent (comme les icônes de nœuds n8n).
@@ -391,7 +410,7 @@ class _Badge extends StatelessWidget {
   }
 }
 
-/// Courbes lissées de la sortie (droite) d'un nœud vers l'entrée (gauche) du suivant.
+/// Courbes lissées entre un nœud et ses branches (vers la droite ou vers la gauche, comme une mindmap).
 /// Agent destinataire au travail : courbe verte, halo léger, points lumineux qui défilent.
 class _Connexions extends CustomPainter {
   _Connexions(
@@ -411,13 +430,16 @@ class _Connexions extends CustomPainter {
     for (final l in liens) {
       final a = dispo.positions[l.de], b = dispo.positions[l.vers];
       if (a == null || b == null) continue;
-      final depart = Offset(a.x + w + 7, a.y + h / 2);
-      final arrivee = Offset(b.x - 9, b.y + h / 2);
+      // Branche de droite : du bord droit du parent au bord gauche de l'enfant ; de gauche : l'inverse.
+      final versDroite = b.x >= a.x;
+      final sens = versDroite ? 1.0 : -1.0;
+      final depart = Offset(versDroite ? a.x + w + 7 : a.x - 7, a.y + h / 2);
+      final arrivee = Offset(versDroite ? b.x - 9 : b.x + w + 9, b.y + h / 2);
       final tension = ((arrivee.dx - depart.dx).abs() * 0.5).clamp(40.0, 180.0);
       final chemin = Path()
         ..moveTo(depart.dx, depart.dy)
-        ..cubicTo(depart.dx + tension, depart.dy, arrivee.dx - tension,
-            arrivee.dy, arrivee.dx, arrivee.dy);
+        ..cubicTo(depart.dx + sens * tension, depart.dy,
+            arrivee.dx - sens * tension, arrivee.dy, arrivee.dx, arrivee.dy);
       final enCours = actif(l.vers);
       final couleur = enCours ? PaletteN8n.vert : PaletteN8n.lien;
 
@@ -461,10 +483,10 @@ class _Connexions extends CustomPainter {
       }
       // Pointe de flèche aux angles arrondis.
       final pointe = Path()
-        ..moveTo(arrivee.dx + 2, arrivee.dy)
-        ..lineTo(arrivee.dx - 8, arrivee.dy - 5.5)
-        ..quadraticBezierTo(
-            arrivee.dx - 6.5, arrivee.dy, arrivee.dx - 8, arrivee.dy + 5.5)
+        ..moveTo(arrivee.dx + sens * 2, arrivee.dy)
+        ..lineTo(arrivee.dx - sens * 8, arrivee.dy - 5.5)
+        ..quadraticBezierTo(arrivee.dx - sens * 6.5, arrivee.dy,
+            arrivee.dx - sens * 8, arrivee.dy + 5.5)
         ..close();
       canvas.drawPath(
           pointe,
