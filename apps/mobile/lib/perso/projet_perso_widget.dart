@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 
 import '/flutter_flow/flutter_flow_theme.dart';
+import 'canevas_n8n.dart';
 import 'detail_agent_sheet.dart';
 import 'perso_commun.dart';
 import 'perso_hub.dart';
@@ -150,118 +151,11 @@ class _ProjetPersoWidgetState extends State<ProjetPersoWidget> {
     if (g.sessions.isEmpty) {
       return Center(child: Text('Aucune session dans ce projet.', style: t.bodyMedium));
     }
-    final dispo = DispositionGraphe(g);
-    return InteractiveViewer(
-      constrained: false,
-      minScale: 0.3,
-      maxScale: 2.5,
-      boundaryMargin: const EdgeInsets.all(200),
-      child: SizedBox(
-        width: dispo.largeur,
-        height: dispo.hauteur,
-        child: Stack(children: [
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _Fleches(g.liens, dispo, t.secondaryText.withValues(alpha: 0.6)),
-            ),
-          ),
-          for (final s in g.sessions)
-            if (dispo.positions[s['id'].toString()] case final pos?)
-              Positioned(
-                left: pos.x,
-                top: pos.y,
-                width: DispositionGraphe.largeurNoeud,
-                height: DispositionGraphe.hauteurNoeud,
-                child: _Noeud(session: _session(s['id'].toString())),
-              ),
-        ]),
-      ),
+    // Canevas façon n8n (voir canevas_n8n.dart). La clé force un nouveau cadrage si le graphe change.
+    return CanevasAgents(
+      key: ValueKey('${g.source}-${g.sessions.length}-${g.liens.length}'),
+      graphe: g,
+      session: _session,
     );
   }
-}
-
-class _Noeud extends StatelessWidget {
-  const _Noeud({required this.session});
-  final Map<String, dynamic> session;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
-    final statut = statutDe(session);
-    final c = couleurStatut(context, statut);
-    return Material(
-      color: t.primaryBackground,
-      borderRadius: BorderRadius.circular(12),
-      elevation: 1,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => ouvrirDetailAgent(context, session),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: c.withValues(alpha: 0.7), width: 1.5),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(nomDe(session),
-                  maxLines: 2, overflow: TextOverflow.ellipsis, style: t.bodySmall.copyWith(fontWeight: FontWeight.w600)),
-              Text(modeleDe(session),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: t.labelSmall.copyWith(color: t.secondaryText)),
-              Row(children: [
-                Pastille(statut: statut, taille: 8),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(libelleStatut(statut),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: t.labelSmall.copyWith(color: c)),
-                ),
-              ]),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Flèches orchestrateur -> sous-agents (du bas du parent vers le haut de l'enfant).
-class _Fleches extends CustomPainter {
-  _Fleches(this.liens, this.dispo, this.couleur);
-  final List<LienAgent> liens;
-  final DispositionGraphe dispo;
-  final Color couleur;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final trait = Paint()
-      ..color = couleur
-      ..strokeWidth = 1.6
-      ..style = PaintingStyle.stroke;
-    final pointe = Paint()..color = couleur;
-    const w = DispositionGraphe.largeurNoeud, h = DispositionGraphe.hauteurNoeud;
-    for (final l in liens) {
-      final a = dispo.positions[l.de], b = dispo.positions[l.vers];
-      if (a == null || b == null) continue;
-      final depart = Offset(a.x + w / 2, a.y + h);
-      final arrivee = Offset(b.x + w / 2, b.y);
-      final milieu = (depart.dy + arrivee.dy) / 2;
-      final chemin = Path()
-        ..moveTo(depart.dx, depart.dy)
-        ..cubicTo(depart.dx, milieu, arrivee.dx, milieu, arrivee.dx, arrivee.dy - 6);
-      canvas.drawPath(chemin, trait);
-      final tete = Path()
-        ..moveTo(arrivee.dx, arrivee.dy)
-        ..lineTo(arrivee.dx - 5, arrivee.dy - 9)
-        ..lineTo(arrivee.dx + 5, arrivee.dy - 9)
-        ..close();
-      canvas.drawPath(tete, pointe);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _Fleches old) => true;
 }

@@ -106,13 +106,16 @@ Future<GrapheProjet> construireGraphe(ProjetPerso projet) async {
   return GrapheProjet(sessions, const [], 'aucun lien');
 }
 
-/// Disposition en étages : les racines en haut, leurs sous-agents en dessous.
+/// Disposition façon n8n : le flux se lit de gauche à droite.
+/// Colonne 0 = orchestrateurs, colonne 1 = leurs sous-agents, etc.
+/// Les sessions sans lien sont rangées à droite, en colonnes de 6.
 class DispositionGraphe {
-  static const double largeurNoeud = 170;
-  static const double hauteurNoeud = 78;
-  static const double ecartX = 22;
-  static const double ecartY = 70;
-  static const double marge = 40;
+  static const double largeurNoeud = 230;
+  static const double hauteurNoeud = 80;
+  static const double ecartX = 110; // place pour les courbes
+  static const double ecartY = 34;
+  static const double marge = 60;
+  static const int parColonneIsoles = 6;
 
   DispositionGraphe(GrapheProjet g) {
     final ids = [for (final s in g.sessions) s['id'].toString()];
@@ -122,48 +125,48 @@ class DispositionGraphe {
       enfants.putIfAbsent(l.de, () => []).add(l.vers);
       aUnParent.add(l.vers);
     }
-    final niveau = <String, int>{};
-    final racines = ids.where((id) => !aUnParent.contains(id) && enfants.containsKey(id));
+    final colonne = <String, int>{};
+    final racines = ids.where((id) => !aUnParent.contains(id) && enfants.containsKey(id)).toList();
     final file = <String>[...racines];
     for (final r in racines) {
-      niveau[r] = 0;
+      colonne[r] = 0;
     }
     while (file.isNotEmpty) {
       final id = file.removeAt(0);
       for (final e in enfants[id] ?? const <String>[]) {
-        if (!niveau.containsKey(e)) {
-          niveau[e] = niveau[id]! + 1;
+        if (!colonne.containsKey(e)) {
+          colonne[e] = colonne[id]! + 1;
           file.add(e);
         }
       }
     }
-    // Sessions sans lien : sur une dernière rangée.
-    final maxNiveau = niveau.values.fold<int>(-1, (a, b) => a > b ? a : b);
-    for (final id in ids) {
-      niveau.putIfAbsent(id, () => maxNiveau + 1);
+    // Sessions sans lien : colonnes de 6, à droite du flux.
+    final isoles = ids.where((id) => !colonne.containsKey(id)).toList();
+    final premiereLibre = colonne.isEmpty ? 0 : colonne.values.reduce((a, b) => a > b ? a : b) + 1;
+    for (var i = 0; i < isoles.length; i++) {
+      colonne[isoles[i]] = premiereLibre + i ~/ parColonneIsoles;
     }
-    final parNiveau = <int, List<String>>{};
+    final parColonne = <int, List<String>>{};
     for (final id in ids) {
-      parNiveau.putIfAbsent(niveau[id]!, () => []).add(id);
+      parColonne.putIfAbsent(colonne[id]!, () => []).add(id);
     }
-    final largeurMax = parNiveau.values
-        .map((l) => l.length * (largeurNoeud + ecartX) - ecartX)
+    final hauteurMax = parColonne.values
+        .map((l) => l.length * (hauteurNoeud + ecartY) - ecartY)
         .fold<double>(0, (a, b) => a > b ? a : b);
-    for (final entree in parNiveau.entries) {
-      final ligne = entree.value;
-      final largeurLigne = ligne.length * (largeurNoeud + ecartX) - ecartX;
-      final x0 = marge + (largeurMax - largeurLigne) / 2;
-      for (var i = 0; i < ligne.length; i++) {
-        positions[ligne[i]] = (
-          x: x0 + i * (largeurNoeud + ecartX),
-          y: marge + entree.key * (hauteurNoeud + ecartY),
+    for (final entree in parColonne.entries) {
+      final liste = entree.value;
+      final hauteurColonne = liste.length * (hauteurNoeud + ecartY) - ecartY;
+      final y0 = marge + (hauteurMax - hauteurColonne) / 2;
+      for (var i = 0; i < liste.length; i++) {
+        positions[liste[i]] = (
+          x: marge + entree.key * (largeurNoeud + ecartX),
+          y: y0 + i * (hauteurNoeud + ecartY),
         );
       }
     }
-    largeur = largeurMax + 2 * marge;
-    hauteur = marge * 2 +
-        (parNiveau.keys.fold<int>(0, (a, b) => a > b ? a : b) + 1) *
-            (hauteurNoeud + ecartY);
+    final nbColonnes = parColonne.keys.fold<int>(0, (a, b) => a > b ? a : b) + 1;
+    largeur = marge * 2 + nbColonnes * (largeurNoeud + ecartX) - ecartX;
+    hauteur = marge * 2 + hauteurMax;
   }
 
   final Map<String, ({double x, double y})> positions = {};
