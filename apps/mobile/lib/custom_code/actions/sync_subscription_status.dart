@@ -31,7 +31,20 @@ String? _extractPlanType(dynamic response) {
   return null;
 }
 
+/// Vicoa Perso : true = l'appli se comporte comme si un abonnement était
+/// actif. Résultat : messages illimités sans débit de crédits, pas de
+/// paywall « plus de crédits », et pas d'enquête de satisfaction liée aux
+/// crédits (elle ne vise que les non-abonnés). Le solde n'est de toute façon
+/// décompté que par l'appli elle-même, jamais contrôlé par le serveur.
+/// Remettre à false pour retrouver le comportement de l'appli officielle.
+const bool kPersoProSansAbonnement = true;
+
 Future<bool> hasActiveSubscription({bool forceRefresh = false}) async {
+  // Vicoa Perso : usage illimité (voir kPersoProSansAbonnement).
+  if (kPersoProSansAbonnement) {
+    return true;
+  }
+
   // 1. Fast path: trust the locally persisted flag. This is a synchronous
   //    in-memory read, so hot-path gating callers (credit use, message send)
   //    don't pay a Superwall SDK round-trip on every call. Guarded by

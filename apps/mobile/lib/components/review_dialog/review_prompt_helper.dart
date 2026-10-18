@@ -2,11 +2,21 @@ import '/components/review_dialog/review_dialog_widget.dart';
 import '/flutter_flow/flutter_flow_util.dart';
 import 'package:flutter/material.dart';
 
+/// Vicoa Perso : true = aucune enquête de satisfaction (« tu aimes Vicoa ? »)
+/// aux paliers de sessions ou de parrainages. Remettre à false pour les
+/// réactiver.
+const bool kPersoSansEnquete = true;
+
 Future<void> maybePromptForSessionReview({
   required BuildContext context,
   required int totalSessionCount,
   Duration delay = const Duration(milliseconds: 500),
 }) async {
+  // Vicoa Perso : on ne demande plus à Antoine s'il aime l'appli.
+  if (kPersoSansEnquete) {
+    return;
+  }
+
   // Don't show review prompt if there are no sessions
   if (totalSessionCount == 0) {
     return;
@@ -49,6 +59,11 @@ Future<void> maybePromptForReferralReview({
   required int referralCount,
   Duration delay = Duration.zero,
 }) async {
+  // Vicoa Perso : on ne demande plus à Antoine s'il aime l'appli.
+  if (kPersoSansEnquete) {
+    return;
+  }
+
   final appState = FFAppState();
   final lastPromptedCount = appState.setting.lastReviewPromptedReferralCount;
   final referralMilestones = [10, 6, 3, 1];
