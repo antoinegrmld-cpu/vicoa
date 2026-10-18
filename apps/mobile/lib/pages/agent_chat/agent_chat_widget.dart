@@ -1,3 +1,4 @@
+import '/perso/perso_pc.dart' show envoyerToutDeSuiteOpenCodeVicoa;
 import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
 import '/flutter_flow/flutter_flow_util.dart';
@@ -2119,7 +2120,29 @@ class _AgentChatWidgetState extends State<AgentChatWidget> with RouteAware, Tick
     }
     safeSetState(() => _steeringMessageIds.add(messageId));
     _queueRevision.value++;
-    final steered = await actions.apiSteerQueuedMessage(widget.instanceId, messageId);
+    bool steered;
+    if (_model.catalogAgentId() == 'opencode') {
+      // Vicoa Perso : Vicoa ne sait pas « steer » OpenCode ; le PC remet le message directement à OpenCode.
+      final msg = _model.messages.cast<dynamic>().firstWhere(
+          (m) => m is Map && m['id']?.toString() == messageId,
+          orElse: () => null);
+      try {
+        steered = await envoyerToutDeSuiteOpenCodeVicoa(
+            widget.instanceId, messageId, (msg?['content'] ?? '').toString());
+        if (steered && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Envoyé tout de suite (par le PC).')));
+        }
+      } catch (e) {
+        steered = false;
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text('Envoi impossible : $e')));
+        }
+      }
+    } else {
+      steered = await actions.apiSteerQueuedMessage(widget.instanceId, messageId);
+    }
     if (!steered) {
       debugPrint('Steer request for queued message $messageId was not accepted');
     }

@@ -584,6 +584,8 @@ String? latestWebPreviewUrl;
   bool canSteerQueuedMessages() {
     final id = catalogAgentId();
     if (id == null) return false;
+    // Vicoa Perso : OpenCode aussi, en passant par le PC (perso/perso_pc.dart).
+    if (id == 'opencode') return true;
     return _capabilityCatalog.agentById(id)?.supportsSteer == true;
   }
 

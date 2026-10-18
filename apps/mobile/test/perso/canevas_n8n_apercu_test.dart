@@ -37,7 +37,7 @@ void main() {
     await _police('MaterialIcons',
         r'C:\hub-agents\outils-dev\flutter\bin\cache\artifacts\material_fonts\MaterialIcons-Regular.otf');
 
-    tester.view.physicalSize = const Size(3200, 2200);
+    tester.view.physicalSize = const Size(4000, 3000);
     tester.view.devicePixelRatio = 2;
     final sessions = [
       _s('o', 'ORCH diag-auto', 'OpenCode', 'abliterated-model-large-v2', 'ACTIVE'),

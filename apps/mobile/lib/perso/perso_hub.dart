@@ -14,7 +14,7 @@
 
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:ui' show Offset, Rect, Size;
+import 'dart:ui' show Offset, Rect;
 
 import '/custom_code/actions/index.dart' as actions;
 import 'perso_store.dart';
@@ -241,15 +241,18 @@ GrapheProjet _ajouterLanes(GrapheProjet base, Map hub) {
   return GrapheProjet(sessions, liens, 'lanes du PC');
 }
 
-/// Disposition en MINDMAP RADIALE : l'orchestrateur au centre, ses lanes réparties TOUT AUTOUR (haut, droite,
-/// bas, gauche...). Les sous-lanes partent vers l'extérieur de leur lane : en colonne pour une branche de côté,
-/// en rangée pour une branche du haut ou du bas (comme une mindmap « CQQCOQP »). Liaisons à angles droits
-/// arrondis (accolades). Plusieurs orchestrateurs : plusieurs mindmaps côte à côte ; sessions sans lien : en dessous.
+/// Disposition en MINDMAP « tout autour », SANS CROISEMENT : l'orchestrateur au centre, ses lanes réparties sur
+/// quatre côtés (haut, droite, bas, gauche). Sur chaque côté, les lanes s'alignent le long d'un TRONC commun qui
+/// part de l'orchestrateur : colonne à droite et à gauche, rangée en haut et en bas. Les sous-lanes partent vers
+/// l'extérieur de leur lane (colonne sur les côtés, rangée en haut/bas), reliées en accolade. Comme chaque côté
+/// occupe sa propre zone et que ses liaisons suivent son tronc, les lignes ne se croisent pas.
 class DispositionGraphe {
   static const double largeurNoeud = 230;
   static const double hauteurNoeud = 80;
-  static const double ecartGroupe = 70; // entre une lane et ses sous-lanes
-  static const double ecartFrere = 22; // entre deux sous-lanes voisines
+  static const double ecartTronc =
+      60; // orchestrateur -> tronc, et tronc -> lanes
+  static const double ecartGroupe = 70; // lane -> ses sous-lanes
+  static const double ecartFrere = 24; // entre deux blocs voisins
   static const double ecartCartes = 160; // entre deux mindmaps
   static const double marge = 60;
   static const int parLigneIsoles = 3;
@@ -273,105 +276,167 @@ class DispositionGraphe {
     const w = largeurNoeud, h = hauteurNoeud;
     final places = <String>{};
     final rel = <String,
-        Offset>{}; // coin haut-gauche, relatif au centre de la mindmap en cours
-    final orientations = <String,
-        Offset>{}; // direction de croissance d'une branche (+-1, 0) ou (0, +-1)
+        Offset>{}; // coin haut-gauche, relatif au centre de l'orchestrateur
+    final sens = <String,
+        Offset>{}; // direction de croissance : (1,0) droite, (-1,0) gauche, (0,-1) haut, (0,1) bas
     var decalageX = 0.0;
 
-    // Sous-lanes d'un nœud, vers l'extérieur ; renvoie les rectangles occupés (pour éviter les chevauchements).
-    void placerGroupe(String parent, Offset dir, List<Rect> occupes) {
-      final e = (enfants[parent] ?? const <String>[])
-          .where((x) => !places.contains(x))
+    List<String> enfantsLibres(String id) => (enfants[id] ?? const <String>[])
+        .where((x) => !places.contains(x))
+        .toList();
+
+    // Taille d'un bloc (une lane + toutes ses sous-lanes) le long du tronc : hauteur sur un côté, largeur en haut/bas.
+    double etendue(String id, bool lateral, Set<String> vus) {
+      if (!vus.add(id)) return 0;
+      final e = (enfants[id] ?? const <String>[])
+          .where((x) => !vus.contains(x))
           .toList();
+      final soi = lateral ? h : w;
+      if (e.isEmpty) return soi;
+      final total = e
+              .map((c) => etendue(c, lateral, vus))
+              .fold<double>(0, (a, b) => a + b) +
+          (e.length - 1) * ecartFrere;
+      return math.max(soi, total);
+    }
+
+    // Place les sous-lanes d'un nœud, vers l'extérieur, centrées sur lui.
+    void placerEnfants(String parent, Offset dir) {
+      final e = enfantsLibres(parent);
       if (e.isEmpty) return;
       places.addAll(e);
+      final lateral = dir.dx != 0;
+      final tailles = [
+        for (final c in e) etendue(c, lateral, {...places}..remove(c))
+      ];
+      final total = tailles.fold<double>(0, (a, b) => a + b) +
+          (e.length - 1) * ecartFrere;
       final p = rel[parent]!;
+      var curseur =
+          lateral ? p.dy + h / 2 - total / 2 : p.dx + w / 2 - total / 2;
       for (var i = 0; i < e.length; i++) {
-        final Offset coin;
-        if (dir.dx != 0) {
-          // branche de côté : colonne de sous-lanes, centrée sur le parent
-          final total = e.length * h + (e.length - 1) * ecartFrere;
-          coin = Offset(p.dx + dir.dx * (w + ecartGroupe),
-              p.dy + h / 2 - total / 2 + i * (h + ecartFrere));
-        } else {
-          // branche du haut ou du bas : rangée de sous-lanes, centrée sur le parent
-          final total = e.length * w + (e.length - 1) * ecartFrere;
-          coin = Offset(p.dx + w / 2 - total / 2 + i * (w + ecartFrere),
-              p.dy + dir.dy * (h + ecartGroupe));
-        }
+        final Offset coin = lateral
+            ? Offset(p.dx + dir.dx * (w + ecartGroupe),
+                curseur + tailles[i] / 2 - h / 2)
+            : Offset(curseur + tailles[i] / 2 - w / 2,
+                p.dy + dir.dy * (h + ecartGroupe));
         rel[e[i]] = coin;
-        orientations[e[i]] = dir;
-        occupes.add(coin & const Size(w, h));
-        placerGroupe(e[i], dir, occupes);
+        sens[e[i]] = dir;
+        curseur += tailles[i] + ecartFrere;
+        placerEnfants(e[i], dir);
       }
     }
 
     for (final r in racines) {
       if (places.contains(r)) continue;
       places.add(r);
-      final branches = (enfants[r] ?? const <String>[])
-          .where((x) => !places.contains(x))
-          .toList();
+      rel
+        ..clear()
+        ..[r] = const Offset(-w / 2, -h / 2);
+      final branches = enfantsLibres(r);
       places.addAll(branches);
       final n = branches.length;
-      // Rayons de départ, puis agrandis jusqu'à ce que plus rien ne se chevauche.
-      var rx = (w + 90).toDouble() + n * 22, ry = (h + 110).toDouble() + n * 14;
-      Map<String, Offset> essai = {};
-      for (var tentative = 0; tentative < 60; tentative++) {
-        essai = {r: const Offset(-w / 2, -h / 2)};
-        final occupes = <Rect>[essai[r]! & const Size(w, h)];
-        final sauvePlaces = {...places};
-        rel
-          ..clear()
-          ..addAll(essai);
-        for (var k = 0; k < n; k++) {
-          // de midi (en haut) dans le sens des aiguilles d'une montre
-          final angle = -math.pi / 2 + 2 * math.pi * k / n;
-          final cx = rx * math.cos(angle), cy = ry * math.sin(angle);
-          rel[branches[k]] = Offset(cx - w / 2, cy - h / 2);
-          final dir = math.cos(angle).abs() >= math.sin(angle).abs() * 0.9
-              ? Offset(math.cos(angle) >= 0 ? 1 : -1, 0)
-              : Offset(0, math.sin(angle) >= 0 ? 1 : -1);
-          orientations[branches[k]] = dir;
-          occupes.add(rel[branches[k]]! & const Size(w, h));
-          placerGroupe(branches[k], dir, occupes);
+
+      // Répartition sur les 4 côtés : droite et gauche prennent le plus (une colonne s'allonge mieux),
+      // haut et bas quelques-unes ; ordre des aiguilles d'une montre en partant du haut.
+      final nHaut = n <= 2 ? 0 : math.max(1, n ~/ 6);
+      final nBas = n <= 3 ? 0 : math.max(1, n ~/ 5);
+      final reste = n - nHaut - nBas;
+      final nDroite = (reste + 1) ~/ 2;
+      final haut = branches.sublist(0, nHaut);
+      final droite = branches.sublist(nHaut, nHaut + nDroite);
+      final bas = branches.sublist(nHaut + nDroite, nHaut + nDroite + nBas);
+      final gauche = branches.sublist(nHaut + nDroite + nBas);
+
+      double longueur(List<String> l, bool lateral) => l.isEmpty
+          ? 0
+          : l
+                  .map((b) => etendue(b, lateral, {...places}..remove(b)))
+                  .fold<double>(0, (a, b) => a + b) +
+              (l.length - 1) * ecartFrere;
+      // Profondeur d'un côté (vers l'extérieur) : pour savoir jusqu'où il s'étend.
+      double profondeur(String id, bool lateral, Set<String> vus) {
+        if (!vus.add(id)) return 0;
+        final e = (enfants[id] ?? const <String>[])
+            .where((x) => !vus.contains(x))
+            .toList();
+        final soi = lateral ? w : h;
+        if (e.isEmpty) return soi;
+        return soi +
+            ecartGroupe +
+            e.map((c) => profondeur(c, lateral, vus)).fold<double>(0, math.max);
+      }
+
+      final hDroite = longueur(droite, true), hGauche = longueur(gauche, true);
+      final lHaut = longueur(haut, false), lBas = longueur(bas, false);
+
+      // Colonnes latérales : tronc vertical à ecartTronc de l'orchestrateur, lanes un cran plus loin.
+      void colonne(List<String> l, int cote) {
+        var y = -longueur(l, true) / 2;
+        for (final b in l) {
+          final t = etendue(b, true, {...places}..remove(b));
+          final x =
+              cote > 0 ? w / 2 + 2 * ecartTronc : -w / 2 - 2 * ecartTronc - w;
+          rel[b] = Offset(x, y + t / 2 - h / 2);
+          sens[b] = Offset(cote.toDouble(), 0);
+          placerEnfants(b, Offset(cote.toDouble(), 0));
+          y += t + ecartFrere;
         }
-        var chevauche = false;
-        for (var i = 0; i < occupes.length && !chevauche; i++) {
-          for (var j = i + 1; j < occupes.length; j++) {
-            if (occupes[i]
-                .inflate(ecartFrere / 2)
-                .overlaps(occupes[j].inflate(ecartFrere / 2))) {
-              chevauche = true;
-              break;
-            }
-          }
+      }
+
+      colonne(droite, 1);
+      colonne(gauche, -1);
+
+      // Rangées du haut et du bas : placées au-delà des colonnes si elles débordent sur leur largeur,
+      // pour ne jamais passer par-dessus les lanes de côté.
+      const largeurColonnes = w / 2 + 2 * ecartTronc;
+      void rangee(List<String> l, int cote) {
+        if (l.isEmpty) return;
+        final largeurRangee = longueur(l, false);
+        final colonnes = cote < 0
+            ? math.max(hDroite, hGauche) / 2
+            : math.max(hDroite, hGauche) / 2;
+        final deborde = largeurRangee / 2 > largeurColonnes;
+        final distance = math.max(
+            h / 2 + 2 * ecartTronc, deborde ? colonnes + ecartTronc * 2 : 0.0);
+        var x = -largeurRangee / 2;
+        for (final b in l) {
+          final t = etendue(b, false, {...places}..remove(b));
+          final y = cote > 0 ? distance : -distance - h;
+          rel[b] = Offset(x + t / 2 - w / 2, y);
+          sens[b] = Offset(0, cote.toDouble());
+          placerEnfants(b, Offset(0, cote.toDouble()));
+          x += t + ecartFrere;
         }
-        if (!chevauche) break;
-        // on recommence plus grand
-        places
-          ..clear()
-          ..addAll(sauvePlaces);
-        rx *= 1.12;
-        ry *= 1.12;
       }
-      // Recadrage de cette mindmap à droite des précédentes.
-      final cles =
-          rel.keys.where((k) => !positionsBrutes.containsKey(k)).toList();
-      var minX = double.infinity;
-      for (final k in cles) {
-        minX = math.min(minX, rel[k]!.dx);
+
+      rangee(haut, -1);
+      rangee(bas, 1);
+      // (profondeur et lHaut/lBas servent au calcul ci-dessus ; gardés pour lisibilité)
+      assert(lHaut >= 0 && lBas >= 0 && profondeur(r, true, {}) >= 0);
+
+      // Cette mindmap est placée à droite des précédentes.
+      var minX = double.infinity, maxX = -double.infinity;
+      for (final p in rel.values) {
+        minX = math.min(minX, p.dx);
+        maxX = math.max(maxX, p.dx + w);
       }
-      for (final k in cles) {
-        positionsBrutes[k] = rel[k]! + Offset(decalageX - minX, 0);
+      rel.forEach(
+          (k, p) => positionsBrutes[k] = p + Offset(decalageX - minX, 0));
+      decalageX += maxX - minX + ecartCartes;
+      centreBrut ??= positionsBrutes[r]! + const Offset(w / 2, h / 2);
+      // Côté de chaque lane de premier niveau (pour tracer le tronc).
+      for (final b in droite) {
+        cotes[b] = 'droite';
       }
-      var maxX = -double.infinity;
-      for (final k in cles) {
-        maxX = math.max(maxX, positionsBrutes[k]!.dx + w);
+      for (final b in gauche) {
+        cotes[b] = 'gauche';
       }
-      decalageX = maxX + ecartCartes;
-      if (racines.first == r) {
-        centreBrut = positionsBrutes[r]! + const Offset(w / 2, h / 2);
+      for (final b in haut) {
+        cotes[b] = 'haut';
+      }
+      for (final b in bas) {
+        cotes[b] = 'bas';
       }
     }
 
@@ -411,40 +476,58 @@ class DispositionGraphe {
             decal;
     centre = (x: c.dx, y: c.dy);
 
-    // Tracés des liaisons (angles droits) : du nœud parent vers l'enfant, selon l'orientation de l'enfant.
+    // Tracés à angles droits : orchestrateur -> tronc -> lane ; lane -> accolade -> sous-lanes.
     for (final l in g.liens) {
       final a = positions[l.de], b = positions[l.vers];
       if (a == null || b == null) continue;
       final ra = Rect.fromLTWH(a.x, a.y, w, h),
           rb = Rect.fromLTWH(b.x, b.y, w, h);
-      final dir = orientations[l.vers] ??
-          Offset((rb.center.dx >= ra.center.dx) ? 1 : -1, 0);
-      final racine = racines.contains(l.de);
+      final cote = cotes[l.vers];
+      final dir =
+          sens[l.vers] ?? Offset(rb.center.dx >= ra.center.dx ? 1 : -1, 0);
       final List<Offset> pts;
-      if (dir.dx != 0) {
-        // départ par le côté (étalé sur la hauteur du centre pour la racine), coude à mi-chemin
-        final yA = racine
-            ? (rb.center.dy).clamp(ra.top + 14, ra.bottom - 14).toDouble()
-            : ra.center.dy;
-        final xA = dir.dx > 0 ? ra.right : ra.left;
-        final xB = dir.dx > 0 ? rb.left : rb.right;
+      if (cote == 'droite' || cote == 'gauche') {
+        // tronc vertical à ecartTronc du bord de l'orchestrateur : tous les liens de ce côté le partagent
+        final xA = cote == 'droite' ? ra.right : ra.left;
+        final xT =
+            cote == 'droite' ? ra.right + ecartTronc : ra.left - ecartTronc;
+        final xB = cote == 'droite' ? rb.left : rb.right;
+        pts = [
+          Offset(xA, ra.center.dy),
+          Offset(xT, ra.center.dy),
+          Offset(xT, rb.center.dy),
+          Offset(xB, rb.center.dy)
+        ];
+      } else if (cote == 'haut' || cote == 'bas') {
+        // tronc horizontal juste au-dessus (ou au-dessous) des lanes du côté, rejoint par le milieu de l'orchestrateur
+        final yA = cote == 'haut' ? ra.top : ra.bottom;
+        final yB = cote == 'haut' ? rb.bottom : rb.top;
+        final yT = cote == 'haut' ? yB + ecartTronc : yB - ecartTronc;
+        pts = [
+          Offset(ra.center.dx, yA),
+          Offset(ra.center.dx, yT),
+          Offset(rb.center.dx, yT),
+          Offset(rb.center.dx, yB)
+        ];
+      } else if (dir.dx != 0) {
+        // accolade latérale vers les sous-lanes
+        final xA = dir.dx > 0 ? ra.right : ra.left,
+            xB = dir.dx > 0 ? rb.left : rb.right;
         final xm = (xA + xB) / 2;
         pts = [
-          Offset(xA, yA),
-          Offset(xm, yA),
+          Offset(xA, ra.center.dy),
+          Offset(xm, ra.center.dy),
           Offset(xm, rb.center.dy),
           Offset(xB, rb.center.dy)
         ];
       } else {
-        final xA = racine
-            ? (rb.center.dx).clamp(ra.left + 24, ra.right - 24).toDouble()
-            : ra.center.dx;
-        final yA = dir.dy > 0 ? ra.bottom : ra.top;
-        final yB = dir.dy > 0 ? rb.top : rb.bottom;
+        // accolade verticale vers les sous-lanes
+        final yA = dir.dy > 0 ? ra.bottom : ra.top,
+            yB = dir.dy > 0 ? rb.top : rb.bottom;
         final ym = (yA + yB) / 2;
         pts = [
-          Offset(xA, yA),
-          Offset(xA, ym),
+          Offset(ra.center.dx, yA),
+          Offset(ra.center.dx, ym),
           Offset(rb.center.dx, ym),
           Offset(rb.center.dx, yB)
         ];
@@ -454,6 +537,7 @@ class DispositionGraphe {
   }
 
   final Map<String, Offset> positionsBrutes = {};
+  final Map<String, String> cotes = {};
   Offset? centreBrut;
   final Map<String, ({double x, double y})> positions = {};
 
