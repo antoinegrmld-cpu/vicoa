@@ -1,3 +1,4 @@
+import '/perso/encart_contexte.dart' show EncartContexte;
 import '/perso/perso_pc.dart' show envoyerToutDeSuiteOpenCodeVicoa;
 import '/flutter_flow/flutter_flow_icon_button.dart';
 import '/flutter_flow/flutter_flow_theme.dart';
@@ -3169,6 +3170,17 @@ class _AgentChatWidgetState extends State<AgentChatWidget> with RouteAware, Tick
             bottom: false,
             child: Column(
             children: [
+                // Vicoa Perso : encart « Contexte » (place restante avant la passation) pour OpenCode.
+                if (_model.catalogAgentId() == 'opencode')
+                  EncartContexte(
+                    vicoaId: widget.instanceId,
+                    replie: true,
+                    onPassation: (texte) {
+                      _model.messageController.text = texte;
+                      _model.messageController.selection =
+                          TextSelection.collapsed(offset: texte.length);
+                    },
+                  ),
                 // Messages area
                 Expanded(
                   child: RepaintBoundary(

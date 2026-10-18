@@ -102,3 +102,17 @@ Future<Map<String, dynamic>> lancerLanePc({
   }, delai: const Duration(minutes: 4));
   return Map<String, dynamic>.from(d['resultat'] as Map? ?? const {});
 }
+
+/// Encart « Contexte » : taille du contexte d'une session OpenCode au dernier tour, lue sur le PC.
+/// Renvoie {tokens, seuil (passation, 60 000), modele, quand (ms)}.
+Future<Map<String, dynamic>> contexteSessionOpenCode(
+    {String? sessionOpenCode, String? vicoaId}) {
+  return demanderAuPc({
+    'etat': 'contexte',
+    'agent': 'opencode',
+    if (sessionOpenCode != null) 'id': sessionOpenCode,
+    if (vicoaId != null) 'vicoa_id': vicoaId,
+  }, etatsFinaux: {
+    'contexte_pret'
+  });
+}

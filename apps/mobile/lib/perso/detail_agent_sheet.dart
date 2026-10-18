@@ -16,6 +16,7 @@ import '/custom_code/widgets/tool_use_group.dart'
 import '/index.dart' show AgentChatWidget;
 import 'canevas_n8n.dart' show apparenceAgent;
 import 'perso_commun.dart' show ilYA, libelleStatut;
+import 'encart_contexte.dart';
 import 'perso_hub.dart' show ecrireFichierPc, kDossierImportPc;
 import 'perso_pc.dart';
 import 'perso_store.dart';
@@ -235,6 +236,17 @@ class _DetailAgentState extends State<_DetailAgent> {
               Text(ilYA(dateDe(s)), style: TexteN8n.doux),
             ]),
             const SizedBox(height: 14),
+            if (a.court == 'OpenCode')
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: EncartContexte(
+                    vicoaId: s['id'].toString(),
+                    onPassation: (texte) => saisie.text = texte,
+                  ),
+                ),
+              ),
             _Section(
                 titre: 'Tâche en cours',
                 enfant: Text(
@@ -577,6 +589,17 @@ class _LanePcState extends State<_LanePc> {
                     color: couleurStatutN8n(statut),
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
+            if (opencode)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: EncartContexte(
+                    sessionOpenCode: sessionPc,
+                    onPassation: (texte) => saisie.text = texte,
+                  ),
+                ),
+              ),
             _Section(
               titre: 'Contenu',
               enfant: chargement
