@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '/custom_code/actions/index.dart' as actions;
 import 'canevas_n8n.dart' show apparenceAgent;
 import 'detail_agent_sheet.dart';
 import 'import_perso_widget.dart';
@@ -40,6 +41,79 @@ class _AccueilPersoWidgetState extends State<AccueilPersoWidget> {
     if (mounted) setState(() {});
   }
 
+  /// Crée un projet côté serveur (POST /api/v1/projects) puis rafraîchit la
+  /// grille. Seul « nouveau » appel au serveur des écrans perso : l'appli
+  /// officielle ne sait créer un projet que depuis le web.
+  Future<void> _creerProjet() async {
+    final controleur = TextEditingController();
+    try {
+      final nom = await showDialog<String>(
+        context: context,
+        builder: (contextDialogue) => Theme(
+          data: themeN8n(context),
+          child: AlertDialog(
+            backgroundColor: PaletteN8n.carte,
+            title: const Text('Nouveau projet', style: TexteN8n.titre),
+            content: TextField(
+              controller: controleur,
+              autofocus: true,
+              textCapitalization: TextCapitalization.sentences,
+              maxLength: 60,
+              decoration: const InputDecoration(
+                hintText: 'Nom du projet',
+                counterText: '',
+                filled: true,
+                fillColor: PaletteN8n.champ,
+                enabledBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: PaletteN8n.bord)),
+                focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: PaletteN8n.accent)),
+              ),
+              style: TexteN8n.corps,
+              onSubmitted: (v) => Navigator.of(contextDialogue).pop(v.trim()),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(contextDialogue).pop(),
+                child: const Text('Annuler',
+                    style: TextStyle(color: PaletteN8n.texteDoux)),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                    backgroundColor: PaletteN8n.accent,
+                    foregroundColor: PaletteN8n.fond),
+                onPressed: () =>
+                    Navigator.of(contextDialogue).pop(controleur.text.trim()),
+                child: const Text('Créer'),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (nom == null || nom.isEmpty || !mounted) return;
+      await actions.vicoaApiRequest(
+          'post', '/api/v1/projects', <String, dynamic>{'name': nom});
+      await store.charger();
+      // Si un rafraîchissement tournait déjà, charger() est sortie aussitôt :
+      // on retente une fois pour montrer le nouveau projet sans attendre.
+      if (store.chargement) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        await store.charger();
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Projet créé.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Création impossible : $e')));
+      }
+    } finally {
+      controleur.dispose();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final groupes = store.regrouper();
@@ -73,6 +147,8 @@ class _AccueilPersoWidgetState extends State<AccueilPersoWidget> {
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2)),
                           ),
+                        _BoutonCreer(onTap: _creerProjet),
+                        const SizedBox(width: 8),
                         _BoutonImporter(
                             onTap: () =>
                                 context.pushNamed(ImportPersoWidget.routeName)),
@@ -143,6 +219,32 @@ class _AccueilPersoWidgetState extends State<AccueilPersoWidget> {
       ),
     );
   }
+}
+
+class _BoutonCreer extends StatelessWidget {
+  const _BoutonCreer({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: PaletteN8n.vert.withValues(alpha: 0.14),
+        shape: StadiumBorder(
+            side: BorderSide(color: PaletteN8n.vert.withValues(alpha: 0.6))),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.add_rounded, size: 18, color: PaletteN8n.vert),
+              SizedBox(width: 6),
+              Text('Créer',
+                  style: TextStyle(
+                      color: PaletteN8n.vert, fontWeight: FontWeight.w600)),
+            ]),
+          ),
+        ),
+      );
 }
 
 class _BoutonImporter extends StatelessWidget {
