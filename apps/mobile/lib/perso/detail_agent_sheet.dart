@@ -2,6 +2,7 @@
 // outils utilisés, et envoi d'une instruction (même fonction que l'écran de chat d'origine).
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -12,11 +13,13 @@ import '/custom_code/widgets/tool_use_group.dart'
 import '/index.dart' show AgentChatWidget;
 import 'canevas_n8n.dart' show apparenceAgent;
 import 'perso_commun.dart' show ilYA, libelleStatut;
+import 'perso_hub.dart' show ecrireFichierPc, kDossierImportPc;
 import 'perso_store.dart';
 import 'perso_theme.dart';
 
 Future<void> ouvrirDetailAgent(
     BuildContext context, Map<String, dynamic> session) {
+  if (session['externe'] == true) return _ouvrirLanePc(context, session);
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -376,6 +379,139 @@ class _Bulle extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TexteN8n.corps.copyWith(fontSize: 13.5)),
       ),
+    );
+  }
+}
+
+/// Fiche d'une lane qui tourne sur le PC mais n'est pas dans Vicoa (détectée par le service d'import).
+/// OpenCode : bouton pour l'importer dans Vicoa (on pourra alors lui écrire). Claude Code : commande de reprise.
+Future<void> _ouvrirLanePc(BuildContext context, Map<String, dynamic> lane) {
+  return showModalBottomSheet(
+    context: context,
+    useSafeArea: true,
+    backgroundColor: PaletteN8n.carte,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (_) => Theme(data: themeN8n(context), child: _LanePc(lane: lane)),
+  );
+}
+
+class _LanePc extends StatefulWidget {
+  const _LanePc({required this.lane});
+  final Map<String, dynamic> lane;
+
+  @override
+  State<_LanePc> createState() => _LanePcState();
+}
+
+class _LanePcState extends State<_LanePc> {
+  bool envoi = false;
+  String? message;
+
+  Future<void> _importer() async {
+    final machine = PersoStore.instance.machineEnLigne();
+    if (machine == null) {
+      setState(() => message = 'Aucun PC relié à Vicoa.');
+      return;
+    }
+    setState(() => envoi = true);
+    final l = widget.lane;
+    final id = 'lane-${DateTime.now().millisecondsSinceEpoch}';
+    final demande = {
+      'etat': 'confirmation',
+      'organiser': false,
+      'proposition': [
+        {
+          'agent': 'opencode',
+          'id': l['session_externe'],
+          'dossier': l['dossier'],
+          'titre': nomDe(l),
+          'projet': '',
+        }
+      ],
+    };
+    final err = await ecrireFichierPc(
+        machine, kDossierImportPc, 'demandes/$id.json', jsonEncode(demande));
+    if (!mounted) return;
+    setState(() {
+      envoi = false;
+      message = err == null
+          ? "Import demandé : la lane apparaîtra dans Vicoa d'ici une minute."
+          : 'Envoi impossible : $err';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = widget.lane;
+    final a = apparenceAgent(l);
+    final statut = statutDe(l);
+    final opencode = l['agent_externe'] == 'opencode';
+    final dossier = (l['dossier'] ?? '').toString();
+    final resume = (l['resume'] ?? '').toString();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Center(
+          child: Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+                color: PaletteN8n.lien, borderRadius: BorderRadius.circular(2)),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(children: [
+          BlocIcone(icone: a.icone, couleur: a.couleur, taille: 46),
+          const SizedBox(width: 12),
+          Expanded(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(nomDe(l),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TexteN8n.sousTitre),
+              const SizedBox(height: 3),
+              Text('${a.court} · lane sur le PC (hors Vicoa)',
+                  style: TexteN8n.doux),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Text('${libelleStatut(statut)} · ${ilYA(dateDe(l))}',
+            style: TexteN8n.doux.copyWith(
+                color: couleurStatutN8n(statut), fontWeight: FontWeight.w600)),
+        const SizedBox(height: 14),
+        _Section(
+            titre: 'Dossier',
+            enfant: SelectableText(dossier,
+                style: TexteN8n.corps.copyWith(fontSize: 13))),
+        if (resume.isNotEmpty)
+          _Section(
+              titre: 'Fin de la dernière réponse',
+              enfant: Text(resume, style: TexteN8n.corps)),
+        if (opencode)
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: envoi ? null : _importer,
+              icon: const Icon(Icons.download_rounded),
+              label: const Text('Importer dans Vicoa pour lui écrire'),
+            ),
+          )
+        else
+          _Section(
+            titre: 'Reprendre sur le PC',
+            enfant: SelectableText(
+                'cd "$dossier"\nclaude --resume ${l['session_externe']}',
+                style: TexteN8n.corps
+                    .copyWith(fontFamily: 'monospace', fontSize: 12.5)),
+          ),
+        if (message != null)
+          Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(message!, style: TexteN8n.doux)),
+      ]),
     );
   }
 }

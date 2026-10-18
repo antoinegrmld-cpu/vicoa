@@ -242,12 +242,8 @@ class PersoStore extends ChangeNotifier {
           .sessions
           .add(s);
     }
-    // Projets Vicoa encore vides : on les montre aussi (ex. créés à l'import).
-    for (final p in projets) {
-      final cle = p['id'].toString();
-      groupes.putIfAbsent(cle,
-          () => ProjetPerso(cle: cle, nom: p['name'].toString(), projet: p));
-    }
+    // Les projets Vicoa sans aucune session ne sont pas affichés : Vicoa en crée parfois tout seul
+    // (un par dossier de lane, par exemple), ils encombreraient l'accueil.
     final liste = groupes.values.toList()
       ..sort((a, b) {
         final da = a.derniereActivite, db = b.derniereActivite;

@@ -1,5 +1,7 @@
 // Vicoa Perso — page d'un projet : graphe des agents (zoomable) ou vue liste, en temps réel.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'canevas_n8n.dart';
@@ -26,6 +28,7 @@ class _ProjetPersoWidgetState extends State<ProjetPersoWidget> {
   GrapheProjet? graphe;
   bool vueListe = false;
   int _nbSessions = -1;
+  Timer? _lanes;
 
   @override
   void initState() {
@@ -33,12 +36,16 @@ class _ProjetPersoWidgetState extends State<ProjetPersoWidget> {
     store.addListener(_maj);
     store.ouvrir();
     _reconstruire();
+    // Les lanes lancées par l'orchestrateur sont détectées sur le PC : on relit toutes les 20 s.
+    _lanes =
+        Timer.periodic(const Duration(seconds: 20), (_) => _reconstruire());
   }
 
   @override
   void dispose() {
     store.removeListener(_maj);
     store.fermer();
+    _lanes?.cancel();
     super.dispose();
   }
 
@@ -60,8 +67,14 @@ class _ProjetPersoWidgetState extends State<ProjetPersoWidget> {
     setState(() {});
   }
 
-  Map<String, dynamic> _session(String id) => store.sessions
-      .firstWhere((s) => s['id'].toString() == id, orElse: () => {'id': id});
+  /// Session à jour : depuis Vicoa (temps réel), sinon le nœud « lane du PC » du graphe.
+  Map<String, dynamic> _session(String id) => store.sessions.firstWhere(
+        (s) => s['id'].toString() == id,
+        orElse: () =>
+            graphe?.sessions.firstWhere((s) => s['id'].toString() == id,
+                orElse: () => {'id': id}) ??
+            {'id': id},
+      );
 
   @override
   Widget build(BuildContext context) {

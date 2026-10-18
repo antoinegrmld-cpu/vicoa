@@ -9,6 +9,8 @@
 //       }
 //     Sans "liens", l'orchestrateur pointe vers toutes les autres sessions du projet.
 //  2. sinon, une règle simple : une session dont le nom contient « orch » est l'orchestrateur.
+//  3. en plus, les LANES détectées sur le PC par le service d'import (C:\hub-agents\vicoa-import\hubs\<projet>.json) :
+//     chaque lane lancée par l'orchestrateur apparaît (même hors de Vicoa) et est reliée au nœud orchestrateur.
 
 import 'dart:convert';
 
@@ -59,7 +61,7 @@ String? _trouver(List<Map<String, dynamic>> sessions, String? ref) {
   return null;
 }
 
-Future<GrapheProjet> construireGraphe(ProjetPerso projet) async {
+Future<GrapheProjet> _grapheDeBase(ProjetPerso projet) async {
   final sessions = List<Map<String, dynamic>>.from(projet.sessions)
     ..sort((a, b) => nomDe(a).compareTo(nomDe(b)));
   final machine = projet.machineId, dossier = projet.dossier;
@@ -112,6 +114,89 @@ Future<GrapheProjet> construireGraphe(ProjetPerso projet) async {
     return GrapheProjet(sessions, liens, 'règle « orch »');
   }
   return GrapheProjet(sessions, const [], 'aucun lien');
+}
+
+/// Dossier du PC où le service d'import écrit les lanes détectées (hubs\<projet>.json).
+const String kDossierImportPc = r'C:\hub-agents\vicoa-import';
+
+String _nomDossier(String chemin) =>
+    chemin.replaceAll('/', r'\').split(r'\').where((x) => x.isNotEmpty).last;
+
+/// Graphe du projet : sessions Vicoa + lanes détectées sur le PC, reliées à l'orchestrateur.
+Future<GrapheProjet> construireGraphe(ProjetPerso projet) async {
+  final base = await _grapheDeBase(projet);
+  final machine = projet.machineId ?? PersoStore.instance.machineEnLigne();
+  if (machine == null) return base;
+  final noms = <String>{
+    if (projet.dossier != null) _nomDossier(projet.dossier!),
+    projet.nom,
+  };
+  for (final nom in noms) {
+    try {
+      final texte =
+          await lireFichierPc(machine, kDossierImportPc, 'hubs/$nom.json');
+      if (texte == null) continue;
+      final hub = jsonDecode(texte);
+      if (hub is Map) return _ajouterLanes(base, hub);
+    } catch (_) {
+      // PC injoignable : on garde le graphe de base
+    }
+  }
+  return base;
+}
+
+/// Nœud pour une session qui tourne sur le PC mais n'est pas (encore) dans Vicoa.
+Map<String, dynamic> _noeudExterne(Map e) => {
+      'id': 'ext:${e['agent']}:${e['id']}',
+      'name': e['titre'],
+      'agent_type_name': e['agent'] == 'opencode' ? 'OpenCode' : 'Claude Code',
+      'status': e['etat'] ?? 'COMPLETED',
+      'session_config': {'model': 'sur le PC'},
+      'latest_message_at': e['derniere_activite'],
+      'externe': true,
+      'agent_externe': e['agent'],
+      'session_externe': e['id'],
+      'dossier': e['dossier'],
+      'resume': e['resume'] ?? '',
+    };
+
+GrapheProjet _ajouterLanes(GrapheProjet base, Map hub) {
+  final sessions = List<Map<String, dynamic>>.from(base.sessions);
+  final liens = List<LienAgent>.from(base.liens);
+  final ids = {for (final s in sessions) s['id'].toString()};
+  String? dansVicoa(Map e) {
+    final v = e['vicoa_id']?.toString();
+    return v != null && ids.contains(v) ? v : null;
+  }
+
+  // Orchestrateur : sa session Vicoa si elle a été importée, sinon celui du graphe de base, sinon un nœud « PC ».
+  String? orch;
+  final o = hub['orchestrateur'];
+  if (o is Map) orch = dansVicoa(o);
+  orch ??= base.liens.isNotEmpty ? base.liens.first.de : null;
+  if (orch == null && o is Map) {
+    final n = _noeudExterne(o);
+    sessions.add(n);
+    orch = n['id'] as String;
+  }
+
+  final lanes = hub['lanes'];
+  if (lanes is List) {
+    for (final l in lanes.whereType<Map>()) {
+      var id = dansVicoa(l);
+      if (id == null) {
+        final n = _noeudExterne(l);
+        id = n['id'] as String;
+        if (!sessions.any((s) => s['id'] == id)) sessions.add(n);
+      }
+      if (orch != null &&
+          id != orch &&
+          !liens.any((x) => x.de == orch && x.vers == id)) {
+        liens.add(LienAgent(orch, id));
+      }
+    }
+  }
+  return GrapheProjet(sessions, liens, 'lanes du PC');
 }
 
 /// Disposition façon n8n : le flux se lit de gauche à droite.
