@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import 'canevas_n8n.dart';
 import 'detail_agent_sheet.dart';
+import 'nouvelle_lane_sheet.dart';
 import 'perso_commun.dart' show libelleStatut;
 import 'perso_hub.dart';
 import 'perso_store.dart';
@@ -76,6 +77,15 @@ class _ProjetPersoWidgetState extends State<ProjetPersoWidget> {
             {'id': id},
       );
 
+  Future<void> _nouvelleLane(ProjetPerso p) async {
+    final id = await ouvrirNouvelleLane(context, p, graphe);
+    if (id == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Lane lancée sur le PC : elle apparaît dans le graphe.')));
+    await store.charger();
+    await _reconstruire();
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = projet;
@@ -83,6 +93,16 @@ class _ProjetPersoWidgetState extends State<ProjetPersoWidget> {
     return Theme(
       data: themeN8n(context),
       child: Scaffold(
+        // « + » : Antoine lance lui-même une lane, reliée à l'orchestrateur du projet.
+        floatingActionButton: p == null
+            ? null
+            : FloatingActionButton(
+                tooltip: 'Nouvelle lane',
+                backgroundColor: PaletteN8n.accent,
+                foregroundColor: Colors.white,
+                onPressed: () => _nouvelleLane(p),
+                child: const Icon(Icons.add_rounded, size: 30),
+              ),
         appBar: AppBar(
           title: Text(p?.nom ?? 'Projet',
               maxLines: 1, overflow: TextOverflow.ellipsis),

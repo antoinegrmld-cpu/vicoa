@@ -78,3 +78,27 @@ Future<bool> envoyerToutDeSuiteOpenCodeVicoa(
       vicoaId: instanceId, texte: texte, toutDeSuite: true);
   return true;
 }
+
+/// Bouton « + » d'un projet : lance une lane sur le PC (même code que l'outil vicoa_lancer_lane du hub) et la
+/// relie à [orchestrateurId] (vide = l'orchestrateur du projet). Renvoie {session_id, projet, relie_a, dossier}.
+Future<Map<String, dynamic>> lancerLanePc({
+  required String projet,
+  String? dossier,
+  required String nom,
+  required String consigne,
+  String agent = 'opencode',
+  String? orchestrateurId,
+}) async {
+  final d = await demanderAuPc({
+    'etat': 'lancer_lane',
+    'projet': projet,
+    if (dossier != null) 'dossier': dossier,
+    'nom': nom,
+    'consigne': consigne,
+    'agent': agent,
+    if (orchestrateurId != null) 'orchestrateur_id': orchestrateurId,
+  }, etatsFinaux: {
+    'lane_lancee'
+  }, delai: const Duration(minutes: 4));
+  return Map<String, dynamic>.from(d['resultat'] as Map? ?? const {});
+}
