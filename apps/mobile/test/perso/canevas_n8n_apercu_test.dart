@@ -1,9 +1,11 @@
 // Aperçu visuel du canevas « façon n8n » (Vicoa Perso) avec des agents fictifs.
-// Génère test/perso/apercu_canevas.png :  flutter test test/perso --update-goldens
+// Écrit test/perso/apercu_canevas_hd.png (haute définition) :  flutter test test/perso
 
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -19,28 +21,22 @@ Map<String, dynamic> _s(String id, String nom, String agent, String modele, Stri
       'status': statut,
     };
 
-Future<void> _chargerPolices() async {
-  // Police réelle de Windows pour que l'aperçu soit lisible (les tests utilisent sinon des carrés).
-  final f = File(r'C:\Windows\Fonts\segoeui.ttf');
-  final g = File(r'C:\Windows\Fonts\seguisb.ttf');
-  if (f.existsSync()) {
-    for (final famille in ['Roboto', 'SourceSans3_regular', 'SourceSans3_400', 'SourceSans3_500', 'SourceSans3_600', 'SourceSans3_700']) {
-      final fichier = famille.endsWith('600') || famille.endsWith('700') || famille.endsWith('500') ? (g.existsSync() ? g : f) : f;
-      final loader = FontLoader(famille)..addFont(Future.value(ByteData.sublistView(fichier.readAsBytesSync())));
-      await loader.load();
-    }
-  }
-  final icones = File(r'C:\hub-agents\outils-dev\flutter\bin\cache\artifacts\material_fonts\MaterialIcons-Regular.otf');
-  if (icones.existsSync()) {
-    final loader = FontLoader('MaterialIcons')..addFont(Future.value(ByteData.sublistView(icones.readAsBytesSync())));
-    await loader.load();
-  }
+Future<void> _police(String famille, String fichier) async {
+  final f = File(fichier);
+  if (!f.existsSync()) return;
+  final loader = FontLoader(famille)..addFont(Future.value(ByteData.sublistView(f.readAsBytesSync())));
+  await loader.load();
 }
 
 void main() {
   setUpAll(() => GoogleFonts.config.allowRuntimeFetching = false);
-  testWidgets('aperçu du canevas n8n', (tester) async {
-    await _chargerPolices();
+
+  testWidgets('aperçu HD du canevas n8n', (tester) async {
+    // Polices réelles (les tests Flutter dessinent sinon des carrés).
+    await _police('Roboto', r'C:\Windows\Fonts\segoeui.ttf');
+    await _police('MaterialIcons',
+        r'C:\hub-agents\outils-dev\flutter\bin\cache\artifacts\material_fonts\MaterialIcons-Regular.otf');
+
     tester.view.physicalSize = const Size(1080, 1500);
     tester.view.devicePixelRatio = 2.5;
     final sessions = [
@@ -55,14 +51,25 @@ void main() {
       LienAgent('o', 'b'),
       LienAgent('o', 'c'),
     ], 'hub.json');
+    final cle = GlobalKey();
     await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(fontFamily: 'Roboto', brightness: Brightness.light),
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(fontFamily: 'Roboto'),
       home: Scaffold(
-        body: CanevasAgents(graphe: graphe, session: (id) => sessions.firstWhere((s) => s['id'] == id)),
+        body: RepaintBoundary(
+          key: cle,
+          child: CanevasAgents(graphe: graphe, session: (id) => sessions.firstWhere((s) => s['id'] == id)),
+        ),
       ),
     ));
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.pump(const Duration(milliseconds: 300));
-    await expectLater(find.byType(CanevasAgents), matchesGoldenFile('apercu_canevas.png'));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.runAsync(() async {
+      final rendu = cle.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await rendu.toImage(pixelRatio: 3);
+      final png = await image.toByteData(format: ui.ImageByteFormat.png);
+      File('test/perso/apercu_canevas_hd.png').writeAsBytesSync(png!.buffer.asUint8List());
+    });
   });
 }

@@ -1,14 +1,47 @@
-// Vicoa Perso — canevas de workflow « façon n8n » pour les agents d'un projet :
-// flux de gauche à droite, fond quadrillé à points, nœuds avec icône d'agent et badge d'état,
-// poignées d'entrée/sortie, courbes animées quand l'agent travaille, boutons zoom / tout afficher.
+// Vicoa Perso — canevas de workflow « façon n8n » pour les agents d'un projet.
+// Toujours sombre (comme n8n) : fond presque noir à points, cartes anthracite avec ombre douce,
+// flux de gauche à droite, poignées, courbes lissées animées quand l'agent travaille,
+// commandes zoom + / zoom − / tout afficher.
+
+import 'dart:ui' show PointMode;
 
 import 'package:flutter/material.dart';
 
-import '/flutter_flow/flutter_flow_theme.dart';
 import 'detail_agent_sheet.dart';
-import 'perso_commun.dart';
+import 'perso_commun.dart' show libelleStatut;
 import 'perso_hub.dart';
 import 'perso_store.dart';
+
+/// Palette sombre fixe (indépendante du thème clair/sombre du téléphone).
+class PaletteN8n {
+  static const fond = Color(0xFF1C1C21);
+  static const points = Color(0xFF34343C);
+  static const carte = Color(0xFF26262D);
+  static const carteHaut = Color(0xFF2C2C34);
+  static const bord = Color(0xFF3D3D47);
+  static const texte = Color(0xFFEDEDF2);
+  static const texteDoux = Color(0xFF9B9BA8);
+  static const lien = Color(0xFF5C5C68);
+  static const vert = Color(0xFF3DDC97);
+  static const orange = Color(0xFFF5A524);
+  static const rouge = Color(0xFFF25F5C);
+  static const commandes = Color(0xFF2A2A31);
+}
+
+Color couleurStatutN8n(String statut) {
+  switch (statut) {
+    case 'ACTIVE':
+    case 'STARTING':
+      return PaletteN8n.vert;
+    case 'AWAITING_INPUT':
+      return PaletteN8n.orange;
+    case 'FAILED':
+    case 'KILLED':
+      return PaletteN8n.rouge;
+    default:
+      return PaletteN8n.texteDoux;
+  }
+}
 
 class CanevasAgents extends StatefulWidget {
   const CanevasAgents({super.key, required this.graphe, required this.session});
@@ -25,7 +58,7 @@ class CanevasAgents extends StatefulWidget {
 class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProviderStateMixin {
   final controle = TransformationController();
   late final AnimationController flux =
-      AnimationController(vsync: this, duration: const Duration(milliseconds: 900))..repeat();
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
   Size? _taille;
   bool _cadre = false;
 
@@ -65,12 +98,8 @@ class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProvider
 
   @override
   Widget build(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
     final g = widget.graphe;
     final d = DispositionGraphe(g);
-    final sombre = Theme.of(context).brightness == Brightness.dark;
-    final fond = sombre ? const Color(0xFF2B2B2E) : const Color(0xFFF4F4F6);
-    final points = sombre ? const Color(0xFF45454B) : const Color(0xFFD3D3DA);
 
     return LayoutBuilder(builder: (context, contraintes) {
       _taille = Size(contraintes.maxWidth, contraintes.maxHeight);
@@ -79,12 +108,14 @@ class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProvider
         WidgetsBinding.instance.addPostFrameCallback((_) => _toutAfficher(d));
       }
       return Stack(children: [
-        Positioned.fill(child: ColoredBox(color: fond)),
+        const Positioned.fill(child: ColoredBox(color: PaletteN8n.fond)),
         // Grille à points qui suit le zoom et le déplacement.
         Positioned.fill(
-          child: AnimatedBuilder(
-            animation: controle,
-            builder: (_, __) => CustomPaint(painter: _GrillePoints(controle.value, points)),
+          child: RepaintBoundary(
+            child: AnimatedBuilder(
+              animation: controle,
+              builder: (_, __) => CustomPaint(painter: _GrillePoints(controle.value)),
+            ),
           ),
         ),
         InteractiveViewer(
@@ -98,19 +129,19 @@ class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProvider
             height: d.hauteur,
             child: Stack(clipBehavior: Clip.none, children: [
               Positioned.fill(
-                child: AnimatedBuilder(
-                  animation: flux,
-                  builder: (_, __) => CustomPaint(
-                    painter: _Connexions(
-                      liens: g.liens,
-                      dispo: d,
-                      phase: flux.value,
-                      actif: (id) {
-                        final s = statutDe(widget.session(id));
-                        return s == 'ACTIVE' || s == 'STARTING';
-                      },
-                      repos: t.secondaryText.withValues(alpha: 0.55),
-                      vif: t.success,
+                child: RepaintBoundary(
+                  child: AnimatedBuilder(
+                    animation: flux,
+                    builder: (_, __) => CustomPaint(
+                      painter: _Connexions(
+                        liens: g.liens,
+                        dispo: d,
+                        phase: flux.value,
+                        actif: (id) {
+                          final s = statutDe(widget.session(id));
+                          return s == 'ACTIVE' || s == 'STARTING';
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -133,16 +164,19 @@ class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProvider
         ),
         // Commandes en bas à gauche, comme dans n8n.
         Positioned(
-          left: 12,
-          bottom: 16,
-          child: Material(
-            color: t.primaryBackground,
-            elevation: 2,
-            borderRadius: BorderRadius.circular(10),
+          left: 14,
+          bottom: 18,
+          child: Container(
+            decoration: BoxDecoration(
+              color: PaletteN8n.commandes,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: PaletteN8n.bord),
+              boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 14, offset: Offset(0, 4))],
+            ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(tooltip: 'Tout afficher', icon: const Icon(Icons.fit_screen_rounded), onPressed: () => _toutAfficher(d)),
-              IconButton(tooltip: 'Zoom +', icon: const Icon(Icons.zoom_in_rounded), onPressed: () => _zoom(1.25)),
-              IconButton(tooltip: 'Zoom −', icon: const Icon(Icons.zoom_out_rounded), onPressed: () => _zoom(0.8)),
+              _BoutonCommande(icone: Icons.fit_screen_rounded, aide: 'Tout afficher', action: () => _toutAfficher(d)),
+              _BoutonCommande(icone: Icons.add_rounded, aide: 'Zoom +', action: () => _zoom(1.25)),
+              _BoutonCommande(icone: Icons.remove_rounded, aide: 'Zoom −', action: () => _zoom(0.8)),
             ]),
           ),
         ),
@@ -151,16 +185,31 @@ class _CanevasAgentsState extends State<CanevasAgents> with SingleTickerProvider
   }
 }
 
+class _BoutonCommande extends StatelessWidget {
+  const _BoutonCommande({required this.icone, required this.aide, required this.action});
+  final IconData icone;
+  final String aide;
+  final VoidCallback action;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        tooltip: aide,
+        onPressed: action,
+        icon: Icon(icone, color: PaletteN8n.texte, size: 22),
+        splashRadius: 22,
+      );
+}
+
 /// Couleur et icône de l'agent (comme les icônes de nœuds n8n).
 ({Color couleur, IconData icone, String court}) apparenceAgent(Map s) {
   final type = '${s['agent_type_name'] ?? ''} ${modeleDe(s)}'.toLowerCase();
-  if (type.contains('claude')) return (couleur: const Color(0xFFD97757), icone: Icons.auto_awesome_rounded, court: 'Claude');
+  if (type.contains('claude')) return (couleur: const Color(0xFFE58A68), icone: Icons.auto_awesome_rounded, court: 'Claude');
   if (type.contains('opencode') || type.contains('abliter')) {
-    return (couleur: const Color(0xFF3B82F6), icone: Icons.terminal_rounded, court: 'OpenCode');
+    return (couleur: const Color(0xFF5B9DFF), icone: Icons.terminal_rounded, court: 'OpenCode');
   }
-  if (type.contains('codex') || type.contains('gpt')) return (couleur: const Color(0xFF10A37F), icone: Icons.code_rounded, court: 'Codex');
-  if (type.contains('gemini')) return (couleur: const Color(0xFF8E75F0), icone: Icons.diamond_outlined, court: 'Gemini');
-  return (couleur: const Color(0xFF7C7C86), icone: Icons.smart_toy_outlined, court: 'Agent');
+  if (type.contains('codex') || type.contains('gpt')) return (couleur: const Color(0xFF2CC497), icone: Icons.code_rounded, court: 'Codex');
+  if (type.contains('gemini')) return (couleur: const Color(0xFFA48BFF), icone: Icons.diamond_outlined, court: 'Gemini');
+  return (couleur: const Color(0xFFA0A0AE), icone: Icons.smart_toy_outlined, court: 'Agent');
 }
 
 class _NoeudN8n extends StatelessWidget {
@@ -170,42 +219,54 @@ class _NoeudN8n extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
     final statut = statutDe(session);
     final a = apparenceAgent(session);
     final actif = statut == 'ACTIVE' || statut == 'STARTING';
-    final bord = actif ? t.success : statut == 'AWAITING_INPUT' ? t.warning : t.alternate;
+    final couleurEtat = couleurStatutN8n(statut);
+    final bord = actif || statut == 'AWAITING_INPUT' ? couleurEtat : PaletteN8n.bord;
+    const rayon = 12.0;
 
     return Stack(clipBehavior: Clip.none, children: [
       Positioned.fill(
-        child: Material(
-          color: t.primaryBackground,
-          elevation: actif ? 4 : 1.5,
-          shadowColor: actif ? t.success.withValues(alpha: 0.5) : null,
-          borderRadius: BorderRadius.circular(10),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () => ouvrirDetailAgent(context, session),
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: bord, width: actif ? 2 : 1.4),
-              ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(rayon),
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [PaletteN8n.carteHaut, PaletteN8n.carte],
+            ),
+            border: Border.all(color: bord, width: actif ? 1.8 : 1.2),
+            boxShadow: [
+              const BoxShadow(color: Color(0x73000000), blurRadius: 16, offset: Offset(0, 6)),
+              if (actif) BoxShadow(color: PaletteN8n.vert.withValues(alpha: 0.28), blurRadius: 18, spreadRadius: 1),
+            ],
+          ),
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(rayon),
+              splashColor: Colors.white10,
+              highlightColor: Colors.white10,
+              onTap: () => ouvrirDetailAgent(context, session),
               child: Row(children: [
-                // Bloc icône, à gauche (signature visuelle des nœuds n8n).
-                Container(
-                  width: 54,
-                  height: double.infinity,
-                  decoration: BoxDecoration(
-                    color: a.couleur.withValues(alpha: 0.14),
-                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(9)),
-                    border: Border(right: BorderSide(color: t.alternate)),
+                // Bloc icône (signature visuelle des nœuds n8n).
+                Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: a.couleur.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: a.couleur.withValues(alpha: 0.35)),
+                    ),
+                    child: Icon(a.icone, color: a.couleur, size: 26),
                   ),
-                  child: Icon(a.icone, color: a.couleur, size: 26),
                 ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 4, 26, 4),
+                    padding: const EdgeInsets.fromLTRB(0, 6, 28, 6),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,14 +274,17 @@ class _NoeudN8n extends StatelessWidget {
                         Text(nomDe(session),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: t.bodyMedium.copyWith(fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
+                            style: const TextStyle(
+                                color: PaletteN8n.texte, fontSize: 14.5, fontWeight: FontWeight.w600, height: 1.2)),
+                        const SizedBox(height: 3),
                         Text('${a.court} · ${modeleDe(session)}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: t.labelSmall.copyWith(color: t.secondaryText)),
+                            style: const TextStyle(color: PaletteN8n.texteDoux, fontSize: 11.5, height: 1.2)),
+                        const SizedBox(height: 3),
                         Text(libelleStatut(statut),
-                            maxLines: 1, style: t.labelSmall.copyWith(color: couleurStatut(context, statut))),
+                            maxLines: 1,
+                            style: TextStyle(color: couleurEtat, fontSize: 11.5, fontWeight: FontWeight.w500, height: 1.2)),
                       ],
                     ),
                   ),
@@ -230,11 +294,9 @@ class _NoeudN8n extends StatelessWidget {
           ),
         ),
       ),
-      // Badge d'état en haut à droite.
-      Positioned(right: 6, top: 6, child: _Badge(statut: statut)),
-      // Poignées d'entrée / de sortie.
-      if (entree) Positioned(left: -6, top: DispositionGraphe.hauteurNoeud / 2 - 6, child: _Poignee(couleur: bord)),
-      if (sortie) Positioned(right: -6, top: DispositionGraphe.hauteurNoeud / 2 - 6, child: _Poignee(couleur: bord)),
+      Positioned(right: 9, top: 9, child: _Badge(statut: statut)),
+      if (entree) Positioned(left: -7, top: DispositionGraphe.hauteurNoeud / 2 - 7, child: _Poignee(couleur: bord)),
+      if (sortie) Positioned(right: -7, top: DispositionGraphe.hauteurNoeud / 2 - 7, child: _Poignee(couleur: bord)),
     ]);
   }
 }
@@ -245,12 +307,12 @@ class _Poignee extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        width: 12,
-        height: 12,
+        width: 14,
+        height: 14,
         decoration: BoxDecoration(
-          color: FlutterFlowTheme.of(context).primaryBackground,
+          color: PaletteN8n.fond,
           shape: BoxShape.circle,
-          border: Border.all(color: couleur, width: 2),
+          border: Border.all(color: couleur == PaletteN8n.bord ? PaletteN8n.lien : couleur, width: 2),
         ),
       );
 }
@@ -261,42 +323,33 @@ class _Badge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = FlutterFlowTheme.of(context);
     switch (statut) {
       case 'ACTIVE':
       case 'STARTING':
-        return SizedBox(
-            width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: t.success));
+        return const SizedBox(
+            width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: PaletteN8n.vert));
       case 'AWAITING_INPUT':
-        return Icon(Icons.pause_circle_filled_rounded, size: 16, color: t.warning);
+        return const Icon(Icons.pause_circle_filled_rounded, size: 17, color: PaletteN8n.orange);
       case 'COMPLETED':
       case 'REVIEWED':
-        return Icon(Icons.check_circle_rounded, size: 16, color: t.success);
+        return const Icon(Icons.check_circle_rounded, size: 17, color: PaletteN8n.vert);
       case 'FAILED':
       case 'KILLED':
-        return Icon(Icons.error_rounded, size: 16, color: t.error);
+        return const Icon(Icons.error_rounded, size: 17, color: PaletteN8n.rouge);
       default:
-        return Icon(Icons.circle, size: 10, color: t.secondaryText.withValues(alpha: 0.6));
+        return const Icon(Icons.circle, size: 9, color: PaletteN8n.lien);
     }
   }
 }
 
-/// Courbes de la sortie (droite) d'un nœud vers l'entrée (gauche) du suivant.
-/// Quand l'agent destinataire travaille, la courbe passe en vert avec des tirets qui défilent.
+/// Courbes lissées de la sortie (droite) d'un nœud vers l'entrée (gauche) du suivant.
+/// Agent destinataire au travail : courbe verte, halo léger, points lumineux qui défilent.
 class _Connexions extends CustomPainter {
-  _Connexions({
-    required this.liens,
-    required this.dispo,
-    required this.phase,
-    required this.actif,
-    required this.repos,
-    required this.vif,
-  });
+  _Connexions({required this.liens, required this.dispo, required this.phase, required this.actif});
   final List<LienAgent> liens;
   final DispositionGraphe dispo;
   final double phase;
   final bool Function(String id) actif;
-  final Color repos, vif;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -304,38 +357,63 @@ class _Connexions extends CustomPainter {
     for (final l in liens) {
       final a = dispo.positions[l.de], b = dispo.positions[l.vers];
       if (a == null || b == null) continue;
-      final depart = Offset(a.x + w + 6, a.y + h / 2);
-      final arrivee = Offset(b.x - 6, b.y + h / 2);
-      final tension = ((arrivee.dx - depart.dx).abs() / 2).clamp(40.0, 160.0);
+      final depart = Offset(a.x + w + 7, a.y + h / 2);
+      final arrivee = Offset(b.x - 9, b.y + h / 2);
+      final tension = ((arrivee.dx - depart.dx).abs() * 0.5).clamp(40.0, 180.0);
       final chemin = Path()
         ..moveTo(depart.dx, depart.dy)
         ..cubicTo(depart.dx + tension, depart.dy, arrivee.dx - tension, arrivee.dy, arrivee.dx, arrivee.dy);
       final enCours = actif(l.vers);
-      final trait = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = enCours ? 2.4 : 2
-        ..color = enCours ? vif : repos;
+      final couleur = enCours ? PaletteN8n.vert : PaletteN8n.lien;
+
       if (enCours) {
-        // Tirets animés le long de la courbe.
+        // Halo doux sous la courbe.
+        canvas.drawPath(
+          chemin,
+          Paint()
+            ..isAntiAlias = true
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 7
+            ..strokeCap = StrokeCap.round
+            ..color = PaletteN8n.vert.withValues(alpha: 0.18)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+        );
+      }
+      canvas.drawPath(
+        chemin,
+        Paint()
+          ..isAntiAlias = true
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = enCours ? 2.4 : 2
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round
+          ..color = couleur,
+      );
+      if (enCours) {
+        // Points lumineux qui avancent le long de la courbe (sens du flux).
+        final point = Paint()
+          ..isAntiAlias = true
+          ..color = const Color(0xFFCFFFE8);
         for (final m in chemin.computeMetrics()) {
-          const tiret = 10.0, espace = 7.0;
-          var pos = -((tiret + espace) * (1 - phase));
-          while (pos < m.length) {
-            final debut = pos.clamp(0.0, m.length), fin = (pos + tiret).clamp(0.0, m.length);
-            if (fin > debut) canvas.drawPath(m.extractPath(debut, fin), trait);
-            pos += tiret + espace;
+          const espacement = 46.0;
+          for (var pos = (phase * espacement) % espacement; pos < m.length; pos += espacement) {
+            final t = m.getTangentForOffset(pos);
+            if (t != null) canvas.drawCircle(t.position, 2.2, point);
           }
         }
-      } else {
-        canvas.drawPath(chemin, trait);
       }
-      // Pointe de flèche à l'entrée.
+      // Pointe de flèche aux angles arrondis.
       final pointe = Path()
-        ..moveTo(arrivee.dx, arrivee.dy)
-        ..lineTo(arrivee.dx - 9, arrivee.dy - 5)
-        ..lineTo(arrivee.dx - 9, arrivee.dy + 5)
+        ..moveTo(arrivee.dx + 2, arrivee.dy)
+        ..lineTo(arrivee.dx - 8, arrivee.dy - 5.5)
+        ..quadraticBezierTo(arrivee.dx - 6.5, arrivee.dy, arrivee.dx - 8, arrivee.dy + 5.5)
         ..close();
-      canvas.drawPath(pointe, Paint()..color = trait.color);
+      canvas.drawPath(
+          pointe,
+          Paint()
+            ..isAntiAlias = true
+            ..color = couleur
+            ..style = PaintingStyle.fill);
     }
   }
 
@@ -343,27 +421,36 @@ class _Connexions extends CustomPainter {
   bool shouldRepaint(covariant _Connexions old) => true;
 }
 
-/// Fond quadrillé à points, aligné sur le zoom et le déplacement du canevas.
+/// Fond à points discrets, aligné sur le zoom et le déplacement du canevas.
 class _GrillePoints extends CustomPainter {
-  _GrillePoints(this.matrice, this.couleur);
+  _GrillePoints(this.matrice);
   final Matrix4 matrice;
-  final Color couleur;
 
   @override
   void paint(Canvas canvas, Size size) {
     final echelle = matrice.getMaxScaleOnAxis();
-    final pas = 22.0 * echelle;
-    if (pas < 6) return; // trop dézoomé : on évite la bouillie de points
+    var pas = 24.0 * echelle;
+    while (pas < 12) {
+      pas *= 2; // dézoom important : on espace les points au lieu de les entasser
+    }
     final tr = matrice.getTranslation();
-    final p = Paint()..color = couleur;
-    final rayon = (1.3 * echelle).clamp(0.8, 2.0);
+    final points = <Offset>[];
     for (var x = tr.x % pas; x < size.width; x += pas) {
       for (var y = tr.y % pas; y < size.height; y += pas) {
-        canvas.drawCircle(Offset(x, y), rayon, p);
+        points.add(Offset(x, y));
       }
     }
+    canvas.drawPoints(
+      PointMode.points,
+      points,
+      Paint()
+        ..isAntiAlias = true
+        ..color = PaletteN8n.points
+        ..strokeWidth = (2.4 * echelle).clamp(1.6, 3.2)
+        ..strokeCap = StrokeCap.round,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant _GrillePoints old) => old.matrice != matrice || old.couleur != couleur;
+  bool shouldRepaint(covariant _GrillePoints old) => old.matrice != matrice;
 }

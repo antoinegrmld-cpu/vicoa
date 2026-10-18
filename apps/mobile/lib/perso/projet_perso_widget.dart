@@ -68,10 +68,14 @@ class _ProjetPersoWidgetState extends State<ProjetPersoWidget> {
     final t = FlutterFlowTheme.of(context);
     final p = projet;
     return Scaffold(
-      backgroundColor: t.secondaryBackground,
+      // Vue graphe : tout l'écran en sombre, comme n8n.
+      backgroundColor: vueListe ? t.secondaryBackground : PaletteN8n.fond,
       appBar: AppBar(
-        backgroundColor: t.secondaryBackground,
-        title: Text(p?.nom ?? 'Projet', style: t.titleMedium),
+        backgroundColor: vueListe ? t.secondaryBackground : PaletteN8n.fond,
+        foregroundColor: vueListe ? t.primaryText : PaletteN8n.texte,
+        surfaceTintColor: Colors.transparent,
+        title: Text(p?.nom ?? 'Projet',
+            style: t.titleMedium.copyWith(color: vueListe ? t.primaryText : PaletteN8n.texte)),
         actions: [
           IconButton(
             tooltip: vueListe ? 'Vue graphe' : 'Vue liste',
@@ -99,7 +103,7 @@ class _ProjetPersoWidgetState extends State<ProjetPersoWidget> {
                       Expanded(
                         child: Text(
                           '${p.sessions.length} session(s) · ${p.agentsActifs} active(s) · liens : ${graphe!.source}',
-                          style: t.labelSmall.copyWith(color: t.secondaryText),
+                          style: t.labelSmall.copyWith(color: vueListe ? t.secondaryText : PaletteN8n.texteDoux),
                         ),
                       ),
                     ]),
