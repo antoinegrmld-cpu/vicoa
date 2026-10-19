@@ -2132,16 +2132,29 @@ class ACPWrapperBase(ABC):
             }:
                 return option_id
 
-        keyword_map = {
-            "once": {"allow", "allow once", "once", "yes", "approve", "y", "ok", "1"},
-            "always": {"always", "allow always", "forever", "2"},
-            "reject": {"reject", "deny", "no", "n", "cancel", "3"},
-        }
+        # Semantic keyword fallback. Each option is bucketed by intent from its
+        # ``kind`` (falling back to its ``option_id``), matched by prefix so it
+        # works for ACP-spec agents whose kinds are
+        # ``allow_once``/``allow_always``/``reject_once`` (e.g. OpenCode) as
+        # well as agents that use the bare words as ids. Previously the map was
+        # keyed on the bare words ``once``/``always``/``reject`` only, so it
+        # never fired for spec-compliant kinds: any reply that wasn't the exact
+        # displayed label or its number fell through to a refusal (a tapped
+        # "Allow" surfaced as a deny).
+        allow_once_words = {"allow", "allow once", "once", "yes", "approve", "y", "ok"}
+        allow_always_words = {"always", "allow always", "always allow", "forever"}
+        reject_words = {"reject", "deny", "no", "n", "cancel", "refuse"}
         for opt in options:
-            option_id = opt["option_id"]
-            option_kind = opt.get("kind", "").lower()
-            if option_kind in keyword_map and normalized in keyword_map[option_kind]:
-                return option_id
+            token = (opt.get("kind", "") or opt["option_id"]).lower()
+            if token.startswith("reject") or token.startswith("deny"):
+                if normalized in reject_words:
+                    return opt["option_id"]
+            elif "always" in token:
+                if normalized in allow_always_words:
+                    return opt["option_id"]
+            elif token.startswith("allow") or token == "once":
+                if normalized in allow_once_words:
+                    return opt["option_id"]
 
         return None
 
